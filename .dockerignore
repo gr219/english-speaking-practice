@@ -32,7 +32,6 @@ audio
 data/*.db
 data/*.db-shm
 data/*.db-wal
-/public
 
 # Build scripts (not needed in container)
 setup.sh
