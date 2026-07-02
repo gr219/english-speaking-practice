@@ -5,6 +5,6 @@ audio/
 db/
 model/
 deps/
-public/
+/public/
 .superpowers/
 *.wav
