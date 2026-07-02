@@ -1,0 +1,13 @@
+services:
+  speech:
+    image: ghcr.io/gr219/english-speaking-practice:latest
+    ports:
+      - "3000:3000"
+    restart: unless-stopped
+    container_name: speech-app
+    volumes:
+      - ./audio:/app/audio
+      - ./data:/app/data
+    environment:
+      - RUST_LOG=info
+      - LEADERBOARD_LIMIT=10

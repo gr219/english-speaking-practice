@@ -1,0 +1,18 @@
+[package]
+name = "speech-rs"
+version = "0.2.0"
+edition = "2021"
+
+[dependencies]
+axum = { version = "0.6.20", features = ["multipart"] }
+chrono = { version = "0.4", features = ["serde"] }
+rand = "0.8.5"
+rusqlite = { version = "0.31", features = ["bundled"] }
+serde = { version = "1.0.188", features = ["derive"] }
+serde_json = "1.0.105"
+tokio = { version = "1.32.0", features = ["full"] }
+tower = { version = "0.4.13", features = ["util"] }
+tower-http = { version = "0.4.4", features = ["fs"] }
+uuid = { version = "1.0", features = ["v4"] }
+vosk = "0.2.0"
+wav = "1.0.0"

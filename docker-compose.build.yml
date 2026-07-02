@@ -1,0 +1,15 @@
+services:
+  speech:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    restart: unless-stopped
+    container_name: speech-app
+    volumes:
+      - ./audio:/app/audio
+      - ./data:/app/data
+    environment:
+      - RUST_LOG=info
+      - LEADERBOARD_LIMIT=10

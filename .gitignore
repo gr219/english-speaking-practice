@@ -1,0 +1,10 @@
+node_modules/
+.parcel-cache
+target/
+audio/
+db/
+model/
+deps/
+public/
+.superpowers/
+*.wav
