@@ -45,7 +45,7 @@ COPY ./model /app/model
 # Copy frontend build output
 COPY --from=frontend /usr/src/app/public /app/public
 # Copy WebAudioRecorder lib files (static assets needed at runtime)
-COPY ./frontend/public/lib /app/public/lib
+COPY --from=frontend /usr/src/app/frontend/public/lib /app/public/lib
 # Create directories for volumes
 RUN mkdir -p /app/audio /app/data
 
