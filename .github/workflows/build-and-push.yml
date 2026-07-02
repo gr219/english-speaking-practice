@@ -27,10 +27,10 @@ jobs:
 
       - name: Download libvosk
         run: |
-          curl -L "https://github.com/alphacep/vosk-api/releases/download/v0.3.50/vosk-linux-x86_64-0.3.50.zip" -o /tmp/vosk-linux.zip
+          curl -L "https://github.com/alphacep/vosk-api/releases/download/v0.3.45/vosk-linux-x86_64-0.3.45.zip" -o /tmp/vosk-linux.zip
           unzip -o /tmp/vosk-linux.zip -d /tmp/vosk-linux
           mkdir -p deps
-          cp /tmp/vosk-linux/vosk-linux-x86_64-0.3.50/libvosk.so deps/libvosk.so
+          cp /tmp/vosk-linux/vosk-linux-x86_64-0.3.45/libvosk.so deps/libvosk.so
 
       - name: Log in to Container Registry
         uses: docker/login-action@v3

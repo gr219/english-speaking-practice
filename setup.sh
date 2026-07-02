@@ -4,7 +4,7 @@
 
 set -e
 
-VOSK_VERSION="v0.3.50"
+VOSK_VERSION="v0.3.45"
 MODEL_URL="https://alphacephei.com/vosk/models/vosk-model-small-en-us-0.15.zip"
 
 echo "=== Setting up Speech dependencies ==="

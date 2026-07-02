@@ -3,8 +3,8 @@
 
 $ErrorActionPreference = "Stop"
 
-$VOSK_VERSION = "v0.3.50"
-$VOSK_VERSION_NUM = "0.3.50"
+$VOSK_VERSION = "v0.3.45"
+$VOSK_VERSION_NUM = "0.3.45"
 $MODEL_URL = "https://alphacephei.com/vosk/models/vosk-model-small-en-us-0.15.zip"
 
 Write-Host "=== Setting up Speech dependencies ===" -ForegroundColor Cyan
