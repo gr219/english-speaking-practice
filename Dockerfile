@@ -5,6 +5,8 @@ COPY ./frontend/package*.json ./
 RUN npm install
 COPY ./frontend .
 RUN npm run build
+# Ensure public/lib files are in output (Vite publicDir)
+RUN cp -r /usr/src/app/frontend/public/lib /usr/src/app/public/lib 2>/dev/null || true
 # Output is in /usr/src/app/public (because vite.config.ts outDir is '../public')
 
 # Stage 2: Build backend with Rust
