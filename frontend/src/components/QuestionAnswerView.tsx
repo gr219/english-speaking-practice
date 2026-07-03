@@ -142,6 +142,14 @@ export default function QuestionAnswerView() {
                     <div className="text-sm text-zinc-600 dark:text-zinc-400">Fluency</div>
                   </div>
                 )}
+                {result.grammar && (
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-amber-600 dark:text-amber-400">
+                      {result.grammar.score.toFixed(1)}%
+                    </div>
+                    <div className="text-sm text-zinc-600 dark:text-zinc-400">Grammar</div>
+                  </div>
+                )}
                 {result.ielts_band && (
                   <div className="text-center">
                     <div className="text-2xl font-bold text-purple-600 dark:text-purple-400">

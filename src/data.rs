@@ -1,4 +1,5 @@
 use crate::fluency::FluencyResult;
+use crate::grammar::GrammarResult;
 use serde::Serialize;
 use vosk::CompleteResultSingle;
 
@@ -39,6 +40,7 @@ pub struct SpeechAnalyzeResult {
     pub words: Vec<Word>,
     pub score: f64,
     pub fluency: Option<FluencyResult>,
+    pub grammar: Option<GrammarResult>,
     pub example_text: Option<String>,
     pub ielts_band: Option<f64>,
 }
@@ -67,6 +69,7 @@ impl SpeechAnalyzeResult {
             words,
             score,
             fluency: None,
+            grammar: None,
             example_text: None,
             ielts_band: None,
         }
@@ -75,8 +78,9 @@ impl SpeechAnalyzeResult {
     pub fn compute_ielts_band(&mut self) {
         let pronunciation_score = self.score;
         let fluency_score = self.fluency.as_ref().map(|f| f.score).unwrap_or(pronunciation_score);
-        // Weighted: 60% pronunciation, 40% fluency
-        let combined = pronunciation_score * 0.6 + fluency_score * 0.4;
+        let grammar_score = self.grammar.as_ref().map(|g| g.score).unwrap_or(pronunciation_score);
+        // Weighted: 40% pronunciation, 30% fluency, 30% grammar
+        let combined = pronunciation_score * 0.4 + fluency_score * 0.3 + grammar_score * 0.3;
         // Map 0-100 to IELTS 1.0-9.0
         let band = if combined >= 95.0 {
             9.0

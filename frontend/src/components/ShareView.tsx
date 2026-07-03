@@ -31,7 +31,7 @@ export default function ShareView() {
           score: rec.score,
           words: JSON.parse(rec.words_json),
           fluency,
-          ielts_band: computeIeltsBand(rec.score, fluency?.score ?? null),
+          ielts_band: computeIeltsBand(rec.score, fluency?.score ?? null, null),
         });
       })
       .catch(() => setError(true));

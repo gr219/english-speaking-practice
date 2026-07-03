@@ -55,8 +55,9 @@ function MainPage() {
         words,
         score: recording.score,
         fluency,
+        grammar: null,
         example_text: recording.example_text,
-        ielts_band: computeIeltsBand(recording.score, fluency?.score ?? null),
+        ielts_band: computeIeltsBand(recording.score, fluency?.score ?? null, null),
       });
       setAudioBlob(null);
       setActiveRecordingId(id);

@@ -3,6 +3,7 @@ import { AnalyzeResult } from '../lib/api';
 import api from '../lib/api';
 import WordPills from './WordPills';
 import FluencyDisplay from './FluencyDisplay';
+import GrammarDisplay from './GrammarDisplay';
 import { getScoreTextColor } from '../lib/utils';
 
 interface ResultsViewProps {
@@ -65,7 +66,7 @@ export default function ResultsView({
             <div className="text-2xl font-bold text-indigo-700 dark:text-indigo-300">{result.ielts_band.toFixed(1)}</div>
           </div>
           <div className="text-xs text-indigo-500 dark:text-indigo-400 max-w-[180px] text-right">
-            Based on pronunciation accuracy and fluency
+            Based on pronunciation, fluency, and grammar
           </div>
         </div>
       )}
@@ -105,6 +106,9 @@ export default function ResultsView({
 
       {/* Fluency analysis */}
       <FluencyDisplay fluency={result.fluency} />
+
+      {/* Grammar analysis */}
+      <GrammarDisplay grammar={result.grammar} />
 
       {/* Word analysis */}
       <WordPills words={result.words} audioBlob={audioBlob} audioUrl={api.getAudioUrl(result.id)} />

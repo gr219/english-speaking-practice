@@ -1,6 +1,7 @@
 use crate::data::SpeechAnalyzeResult;
 use crate::db::NewRecording;
 use crate::fluency::analyze_fluency;
+use crate::grammar::analyze_grammar;
 use crate::speech::SpeechEngine;
 use crate::state::ServerState;
 use axum::body::Body;
@@ -84,9 +85,13 @@ async fn speech_recognition_handler(
         if let Some(single) = rec.final_result().single() {
             let mut result = SpeechAnalyzeResult::from_vosk(single);
 
-            // Compute fluency and IELTS band
+            // Compute fluency and grammar, then IELTS band
             result.fluency = analyze_fluency(&result.words);
             result.example_text = target_text.clone();
+            result.grammar = analyze_grammar(
+                &result.text,
+                target_text.as_deref(),
+            );
             result.compute_ielts_band();
 
             // Save audio file

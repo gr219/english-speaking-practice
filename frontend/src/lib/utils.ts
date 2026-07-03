@@ -32,8 +32,11 @@ export function truncateText(text: string, maxLen: number): string {
   return text.slice(0, maxLen) + '...';
 }
 
-export function computeIeltsBand(pronunciationScore: number, fluencyScore: number | null): number {
-  const combined = pronunciationScore * 0.6 + (fluencyScore ?? pronunciationScore) * 0.4;
+export function computeIeltsBand(pronunciationScore: number, fluencyScore: number | null, grammarScore: number | null): number {
+  const fluency = fluencyScore ?? pronunciationScore;
+  const grammar = grammarScore ?? pronunciationScore;
+  // Weighted: 40% pronunciation, 30% fluency, 30% grammar
+  const combined = pronunciationScore * 0.4 + fluency * 0.3 + grammar * 0.3;
   let band: number;
   if (combined >= 95) band = 9.0;
   else if (combined >= 85) band = 8.0 + (combined - 85) / 10;

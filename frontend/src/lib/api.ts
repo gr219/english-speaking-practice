@@ -13,12 +13,23 @@ export interface Fluency {
   rhythm_score: number;
 }
 
+export interface GrammarIssue {
+  kind: string;
+  message: string;
+}
+
+export interface Grammar {
+  score: number;
+  issues: GrammarIssue[];
+}
+
 export interface AnalyzeResult {
   id: string;
   text: string;
   words: Word[];
   score: number;
   fluency: Fluency | null;
+  grammar: Grammar | null;
   example_text: string | null;
   ielts_band: number | null;
 }

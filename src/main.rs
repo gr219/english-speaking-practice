@@ -12,6 +12,7 @@ mod api;
 mod data;
 mod db;
 mod fluency;
+mod grammar;
 mod speech;
 mod state;
 
