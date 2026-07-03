@@ -206,10 +206,15 @@ async fn delete_recording_handler(
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
         .ok_or(StatusCode::NOT_FOUND)?;
 
-    let deleted = state
-        .db
-        .delete_recording(&id, &user_id)
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    // Admin can delete anyone's recording
+    let deleted = if is_admin(&state, &headers) {
+        state.db.delete_recording_admin(&id)
+            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        true
+    } else {
+        state.db.delete_recording(&id, &user_id)
+            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+    };
 
     if deleted {
         // Remove audio file (best-effort)

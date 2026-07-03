@@ -124,10 +124,14 @@ const api = {
     return res.json();
   },
 
-  async deleteRecording(id: string, userId: string): Promise<void> {
+  async deleteRecording(id: string, userId: string, adminToken?: string): Promise<void> {
+    const headers: Record<string, string> = { 'X-User-Id': userId };
+    if (adminToken) {
+      headers['X-Admin-Token'] = adminToken;
+    }
     const res = await fetch(`/api/recordings/${id}`, {
       method: 'DELETE',
-      headers: { 'X-User-Id': userId },
+      headers,
     });
     if (!res.ok) throw new Error('Failed to delete recording');
   },

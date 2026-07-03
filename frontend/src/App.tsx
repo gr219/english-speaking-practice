@@ -20,7 +20,7 @@ import { computeIeltsBand } from './lib/utils';
 function MainPage() {
   const userId = useUserId();
   const navigate = useNavigate();
-  const { isAdmin, login } = useAdmin();
+  const { isAdmin, login, getAdminToken } = useAdmin();
   const [showAdminLogin, setShowAdminLogin] = useState(false);
   const [currentResult, setCurrentResult] = useState<AnalyzeResult | null>(null);
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
@@ -76,7 +76,7 @@ function MainPage() {
     if (!activeRecordingId) return;
     if (!confirm('Delete this recording and its audio?')) return;
     try {
-      await api.deleteRecording(activeRecordingId, userId);
+      await api.deleteRecording(activeRecordingId, userId, getAdminToken() || undefined);
       setCurrentResult(null);
       setAudioBlob(null);
       setActiveRecordingId(null);
