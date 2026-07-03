@@ -19,6 +19,19 @@ fn extract_user_id(headers: &HeaderMap) -> Option<String> {
         .map(|s| s.to_string())
 }
 
+fn extract_admin_token(headers: &HeaderMap) -> Option<String> {
+    headers
+        .get("x-admin-token")
+        .and_then(|v| v.to_str().ok())
+        .map(|s| s.to_string())
+}
+
+fn is_admin(state: &ServerState, headers: &HeaderMap) -> bool {
+    extract_admin_token(headers)
+        .and_then(|token| state.db.verify_admin_password(&token).ok())
+        .unwrap_or(false)
+}
+
 async fn pronounce_lookup_handler(
     state: State<ServerState>,
     Json(words): Json<Vec<String>>,
@@ -292,6 +305,141 @@ async fn list_questions_handler(
     Ok(Json(questions))
 }
 
+// --- Admin endpoints ---
+
+#[derive(Deserialize)]
+pub struct AdminVerifyRequest {
+    pub password: String,
+}
+
+#[derive(Serialize)]
+pub struct AdminVerifyResponse {
+    pub valid: bool,
+}
+
+async fn admin_verify_handler(
+    state: State<ServerState>,
+    Json(req): Json<AdminVerifyRequest>,
+) -> Result<impl IntoResponse, StatusCode> {
+    let valid = state
+        .db
+        .verify_admin_password(&req.password)
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    Ok(Json(AdminVerifyResponse { valid }))
+}
+
+async fn admin_list_questions_handler(
+    state: State<ServerState>,
+    headers: HeaderMap,
+) -> Result<impl IntoResponse, StatusCode> {
+    if !is_admin(&state, &headers) {
+        return Err(StatusCode::FORBIDDEN);
+    }
+    let questions = state
+        .db
+        .list_all_questions()
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    Ok(Json(questions))
+}
+
+async fn admin_delete_question_handler(
+    state: State<ServerState>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+) -> Result<impl IntoResponse, StatusCode> {
+    if !is_admin(&state, &headers) {
+        return Err(StatusCode::FORBIDDEN);
+    }
+    let deleted = state
+        .db
+        .delete_question(&id)
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    if deleted {
+        Ok(StatusCode::NO_CONTENT)
+    } else {
+        Err(StatusCode::NOT_FOUND)
+    }
+}
+
+async fn admin_delete_recording_handler(
+    state: State<ServerState>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+) -> Result<impl IntoResponse, StatusCode> {
+    if !is_admin(&state, &headers) {
+        return Err(StatusCode::FORBIDDEN);
+    }
+    let audio_path = state
+        .db
+        .delete_recording_admin(&id)
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    if let Some(path) = audio_path {
+        let full_path = format!("./audio/{}", path);
+        let _ = std::fs::remove_file(&full_path);
+    }
+    Ok(StatusCode::NO_CONTENT)
+}
+
+// --- Batch question creation ---
+
+#[derive(Deserialize)]
+pub struct BatchQuestionItem {
+    pub text: String,
+    pub time_limit_secs: i32,
+}
+
+#[derive(Serialize)]
+pub struct BatchQuestionResponse {
+    pub ids: Vec<String>,
+}
+
+async fn create_questions_batch_handler(
+    state: State<ServerState>,
+    headers: HeaderMap,
+    Json(req): Json<Vec<BatchQuestionItem>>,
+) -> Result<impl IntoResponse, StatusCode> {
+    let creator_id = extract_user_id(&headers).unwrap_or_default();
+    let questions: Vec<(String, i32)> = req.into_iter().map(|q| (q.text, q.time_limit_secs)).collect();
+    let ids = state
+        .db
+        .insert_questions_batch(&creator_id, &questions)
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    Ok(Json(BatchQuestionResponse { ids }))
+}
+
+// --- Feedback endpoints ---
+
+#[derive(Deserialize)]
+pub struct CreateFeedbackRequest {
+    pub feedback_text: String,
+    pub question_id: String,
+}
+
+async fn create_feedback_handler(
+    state: State<ServerState>,
+    headers: HeaderMap,
+    Path(recording_id): Path<String>,
+    Json(req): Json<CreateFeedbackRequest>,
+) -> Result<impl IntoResponse, StatusCode> {
+    let created_by = extract_user_id(&headers).unwrap_or_default();
+    let id = state
+        .db
+        .insert_feedback(&recording_id, &req.question_id, &req.feedback_text, &created_by)
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    Ok(Json(serde_json::json!({ "id": id })))
+}
+
+async fn get_feedbacks_handler(
+    state: State<ServerState>,
+    Path(recording_id): Path<String>,
+) -> Result<impl IntoResponse, StatusCode> {
+    let feedbacks = state
+        .db
+        .get_feedbacks_for_recording(&recording_id)
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    Ok(Json(feedbacks))
+}
+
 pub fn router() -> Router<ServerState, Body> {
     Router::new()
         .route("/pronounce", post(pronounce_lookup_handler))
@@ -301,9 +449,16 @@ pub fn router() -> Router<ServerState, Body> {
         .route("/recordings/:id", get(get_recording_handler))
         .route("/recordings/:id", delete(delete_recording_handler))
         .route("/recordings/:id/audio", get(get_recording_audio_handler))
+        .route("/recordings/:id/feedback", post(create_feedback_handler))
+        .route("/recordings/:id/feedback", get(get_feedbacks_handler))
         .route("/leaderboard", get(leaderboard_handler))
         .route("/questions", post(create_question_handler))
         .route("/questions", get(list_questions_handler))
+        .route("/questions/batch", post(create_questions_batch_handler))
         .route("/questions/:id", get(get_question_handler))
         .route("/questions/:id/submissions", get(get_question_submissions_handler))
+        .route("/admin/verify", post(admin_verify_handler))
+        .route("/admin/questions", get(admin_list_questions_handler))
+        .route("/admin/questions/:id", delete(admin_delete_question_handler))
+        .route("/admin/recordings/:id", delete(admin_delete_recording_handler))
 }

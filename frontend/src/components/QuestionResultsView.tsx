@@ -1,15 +1,25 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import api, { Question, SubmissionEntry } from '../lib/api';
+import { useUserId } from '../hooks/useUserId';
+import { useAdmin } from '../hooks/useAdmin';
 
 export default function QuestionResultsView() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const userId = useUserId();
+  const { isAdmin, getAdminToken } = useAdmin();
   const [question, setQuestion] = useState<Question | null>(null);
   const [submissions, setSubmissions] = useState<SubmissionEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [playingId, setPlayingId] = useState<string | null>(null);
+  const [feedbackText, setFeedbackText] = useState<Record<string, string>>({});
+  const [feedbackSending, setFeedbackSending] = useState<string | null>(null);
+  const [feedbackSent, setFeedbackSent] = useState<Record<string, boolean>>({});
+
+  const isCreator = question?.creator_id === userId;
+  const canFeedback = isAdmin || isCreator;
 
   useEffect(() => {
     const fetchData = async () => {
@@ -43,6 +53,33 @@ export default function QuestionResultsView() {
     }
   };
 
+  const handleSubmitFeedback = async (submissionId: string) => {
+    const text = feedbackText[submissionId]?.trim();
+    if (!text || !id) return;
+    setFeedbackSending(submissionId);
+    try {
+      await api.createFeedback(submissionId, id, text, userId);
+      setFeedbackSent((prev) => ({ ...prev, [submissionId]: true }));
+      setFeedbackText((prev) => ({ ...prev, [submissionId]: '' }));
+    } catch {
+      alert('Failed to submit feedback');
+    } finally {
+      setFeedbackSending(null);
+    }
+  };
+
+  const handleDeleteSubmission = async (submissionId: string) => {
+    if (!confirm('Delete this submission?')) return;
+    const token = getAdminToken();
+    if (!token) return;
+    try {
+      await api.adminDeleteRecording(submissionId, token);
+      setSubmissions((prev) => prev.filter((s) => s.id !== submissionId));
+    } catch {
+      alert('Failed to delete submission');
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-screen bg-white dark:bg-zinc-900">
@@ -73,6 +110,11 @@ export default function QuestionResultsView() {
           <div className="text-sm text-zinc-600 dark:text-zinc-400">
             Time limit: {Math.floor(question.time_limit_secs / 60)}:{(question.time_limit_secs % 60).toString().padStart(2, '0')}
           </div>
+          {canFeedback && (
+            <div className="mt-2 text-xs text-indigo-600 dark:text-indigo-400 font-medium">
+              ✓ You can submit feedback for submissions
+            </div>
+          )}
         </div>
 
         {submissions.length === 0 ? (
@@ -97,18 +139,17 @@ export default function QuestionResultsView() {
                     Time
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-zinc-600 dark:text-zinc-300 uppercase tracking-wider">
-                    Audio
+                    Actions
                   </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200 dark:divide-zinc-600">
                 {submissions.map((sub) => (
-                  <tr
-                    key={sub.id}
-                    onClick={() => navigate(`/share/${sub.id}`)}
-                    className="hover:bg-gray-50 dark:hover:bg-zinc-700/50 cursor-pointer"
-                  >
-                    <td className="px-4 py-3 text-sm text-zinc-800 dark:text-zinc-200">
+                  <tr key={sub.id}>
+                    <td
+                      className="px-4 py-3 text-sm text-zinc-800 dark:text-zinc-200 cursor-pointer hover:text-blue-600 dark:hover:text-blue-400"
+                      onClick={() => navigate(`/share/${sub.id}`)}
+                    >
                       {sub.speaker_name || 'Anonymous'}
                     </td>
                     <td className="px-4 py-3 text-sm">
@@ -129,12 +170,23 @@ export default function QuestionResultsView() {
                       {formatDate(sub.created_at)}
                     </td>
                     <td className="px-4 py-3">
-                      <button
-                        onClick={() => handlePlayAudio(sub.id)}
-                        className="text-blue-500 hover:text-blue-600 dark:text-blue-400 dark:hover:text-blue-300 text-sm"
-                      >
-                        {playingId === sub.id ? '⏸ Pause' : '▶ Play'}
-                      </button>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => handlePlayAudio(sub.id)}
+                          className="text-blue-500 hover:text-blue-600 dark:text-blue-400 dark:hover:text-blue-300 text-xs"
+                        >
+                          {playingId === sub.id ? '⏸' : '▶'}
+                        </button>
+                        {isAdmin && (
+                          <button
+                            onClick={() => handleDeleteSubmission(sub.id)}
+                            className="text-red-500 hover:text-red-600 text-xs"
+                            title="Delete submission"
+                          >
+                            🗑️
+                          </button>
+                        )}
+                      </div>
                       {playingId === sub.id && (
                         <div className="mt-2">
                           <audio
@@ -144,6 +196,30 @@ export default function QuestionResultsView() {
                             onEnded={() => setPlayingId(null)}
                             className="w-full max-w-xs"
                           />
+                        </div>
+                      )}
+                      {canFeedback && (
+                        <div className="mt-2">
+                          {feedbackSent[sub.id] ? (
+                            <div className="text-xs text-green-600 dark:text-green-400">✓ Feedback sent</div>
+                          ) : (
+                            <div className="flex gap-1">
+                              <input
+                                type="text"
+                                value={feedbackText[sub.id] || ''}
+                                onChange={(e) => setFeedbackText((prev) => ({ ...prev, [sub.id]: e.target.value }))}
+                                placeholder="Write feedback..."
+                                className="flex-1 px-2 py-1 text-xs border border-gray-200 dark:border-zinc-600 rounded bg-white dark:bg-zinc-700 text-zinc-800 dark:text-zinc-200 placeholder-zinc-400 focus:outline-none focus:ring-1 focus:ring-blue-300"
+                              />
+                              <button
+                                onClick={() => handleSubmitFeedback(sub.id)}
+                                disabled={feedbackSending === sub.id || !feedbackText[sub.id]?.trim()}
+                                className="px-2 py-1 text-xs bg-indigo-500 text-white rounded hover:bg-indigo-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                              >
+                                {feedbackSending === sub.id ? '...' : 'Send'}
+                              </button>
+                            </div>
+                          )}
                         </div>
                       )}
                     </td>

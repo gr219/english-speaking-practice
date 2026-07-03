@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { Routes, Route } from 'react-router-dom';
+import { Routes, Route, useNavigate } from 'react-router-dom';
 import Layout from './components/Layout';
 import RecordingView from './components/RecordingView';
 import ResultsView from './components/ResultsView';
@@ -9,13 +9,19 @@ import QuestionResultsView from './components/QuestionResultsView';
 import HistorySidebar from './components/HistorySidebar';
 import MyQuestions from './components/MyQuestions';
 import Leaderboard from './components/Leaderboard';
+import AdminLoginModal from './components/AdminLoginModal';
+import AdminPanel from './components/AdminPanel';
 import { AnalyzeResult, Word } from './lib/api';
 import api from './lib/api';
 import { useUserId } from './hooks/useUserId';
+import { useAdmin } from './hooks/useAdmin';
 import { computeIeltsBand } from './lib/utils';
 
 function MainPage() {
   const userId = useUserId();
+  const navigate = useNavigate();
+  const { isAdmin, login } = useAdmin();
+  const [showAdminLogin, setShowAdminLogin] = useState(false);
   const [currentResult, setCurrentResult] = useState<AnalyzeResult | null>(null);
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
   const [activeRecordingId, setActiveRecordingId] = useState<string | null>(null);
@@ -80,6 +86,14 @@ function MainPage() {
     }
   };
 
+  const handleAdminLogin = async (password: string): Promise<boolean> => {
+    const valid = await login(password);
+    if (valid) {
+      setShowAdminLogin(false);
+    }
+    return valid;
+  };
+
   const sidebar = (
     <HistorySidebar
       userId={userId}
@@ -96,29 +110,71 @@ function MainPage() {
 
   if (currentResult) {
     return (
-      <Layout sidebar={sidebar} questionsSidebar={questionsSidebar} rightPanel={leaderboard}>
-        <ResultsView
-          result={currentResult}
-          audioBlob={audioBlob}
-          onNewRecording={handleNewRecording}
-          onSameRecording={handleSameRecording}
-          onDelete={handleDelete}
-        />
-      </Layout>
+      <>
+        <Layout
+          sidebar={sidebar}
+          questionsSidebar={questionsSidebar}
+          rightPanel={leaderboard}
+          isAdmin={isAdmin}
+          onAdminLogin={() => setShowAdminLogin(true)}
+          onAdminPanel={() => navigate('/admin')}
+        >
+          <ResultsView
+            result={currentResult}
+            audioBlob={audioBlob}
+            onNewRecording={handleNewRecording}
+            onSameRecording={handleSameRecording}
+            onDelete={handleDelete}
+          />
+        </Layout>
+        {showAdminLogin && (
+          <AdminLoginModal onLogin={handleAdminLogin} onClose={() => setShowAdminLogin(false)} />
+        )}
+      </>
     );
   }
 
   return (
-    <Layout sidebar={sidebar} questionsSidebar={questionsSidebar} rightPanel={leaderboard}>
-      <RecordingView onResult={handleResult} prefillText={prefillText} />
-    </Layout>
+    <>
+      <Layout
+        sidebar={sidebar}
+        questionsSidebar={questionsSidebar}
+        rightPanel={leaderboard}
+        isAdmin={isAdmin}
+        onAdminLogin={() => setShowAdminLogin(true)}
+        onAdminPanel={() => navigate('/admin')}
+      >
+        <RecordingView onResult={handleResult} prefillText={prefillText} />
+      </Layout>
+      {showAdminLogin && (
+        <AdminLoginModal onLogin={handleAdminLogin} onClose={() => setShowAdminLogin(false)} />
+      )}
+    </>
   );
+}
+
+function AdminPage() {
+  const navigate = useNavigate();
+  const { isAdmin, logout, getAdminToken } = useAdmin();
+
+  if (!isAdmin) {
+    navigate('/');
+    return null;
+  }
+
+  const handleLogout = () => {
+    logout();
+    navigate('/');
+  };
+
+  return <AdminPanel adminToken={getAdminToken() || ''} onLogout={handleLogout} />;
 }
 
 export default function App() {
   return (
     <Routes>
       <Route path="/" element={<MainPage />} />
+      <Route path="/admin" element={<AdminPage />} />
       <Route path="/share/:id" element={<ShareView />} />
       <Route path="/q/:id" element={<QuestionAnswerView />} />
       <Route path="/q/:id/results" element={<QuestionResultsView />} />

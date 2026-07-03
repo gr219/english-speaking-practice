@@ -2,6 +2,8 @@ use rusqlite::{params, Connection, Result};
 use serde::{Deserialize, Serialize};
 use std::sync::Mutex;
 
+const DEFAULT_ADMIN_PASSWORD: &str = "CozyLan94@";
+
 pub struct Database {
     conn: Mutex<Connection>,
 }
@@ -79,6 +81,26 @@ pub struct QuestionSummary {
     pub submission_count: i32,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Feedback {
+    pub id: String,
+    pub recording_id: String,
+    pub question_id: String,
+    pub feedback_text: String,
+    pub created_by: String,
+    pub created_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct QuestionWithCreator {
+    pub id: String,
+    pub creator_id: String,
+    pub text: String,
+    pub time_limit_secs: i32,
+    pub created_at: String,
+    pub submission_count: i32,
+}
+
 impl Database {
     pub fn new(db_path: &str) -> Result<Self> {
         let conn = Connection::open(db_path)?;
@@ -131,6 +153,40 @@ impl Database {
                 created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
             );
             CREATE INDEX IF NOT EXISTS idx_questions_creator_id ON questions(creator_id);"
+        )?;
+
+        // Create admin_password table
+        conn.execute_batch(
+            "CREATE TABLE IF NOT EXISTS admin_password (
+                id INTEGER PRIMARY KEY CHECK (id = 1),
+                password TEXT NOT NULL
+            );"
+        )?;
+        // Insert default password if not exists
+        let has_password: bool = conn
+            .query_row("SELECT COUNT(*) FROM admin_password", [], |row| row.get::<_, i32>(0))
+            .unwrap_or(0) > 0;
+        if !has_password {
+            conn.execute(
+                "INSERT INTO admin_password (id, password) VALUES (1, ?1)",
+                params![DEFAULT_ADMIN_PASSWORD],
+            )?;
+        }
+
+        // Create feedbacks table
+        conn.execute_batch(
+            "CREATE TABLE IF NOT EXISTS feedbacks (
+                id TEXT PRIMARY KEY,
+                recording_id TEXT NOT NULL,
+                question_id TEXT NOT NULL,
+                feedback_text TEXT NOT NULL,
+                created_by TEXT NOT NULL,
+                created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+                FOREIGN KEY (recording_id) REFERENCES recordings(id),
+                FOREIGN KEY (question_id) REFERENCES questions(id)
+            );
+            CREATE INDEX IF NOT EXISTS idx_feedbacks_recording_id ON feedbacks(recording_id);
+            CREATE INDEX IF NOT EXISTS idx_feedbacks_question_id ON feedbacks(question_id);"
         )?;
 
         Ok(Self {
@@ -308,6 +364,108 @@ impl Database {
                 time_limit_secs: row.get(2)?,
                 created_at: row.get(3)?,
                 submission_count: row.get(4)?,
+            })
+        })?;
+        rows.collect()
+    }
+
+    // --- Admin methods ---
+
+    pub fn verify_admin_password(&self, password: &str) -> Result<bool> {
+        let conn = self.conn.lock().unwrap();
+        let stored: String = conn.query_row(
+            "SELECT password FROM admin_password WHERE id = 1",
+            [],
+            |row| row.get(0),
+        )?;
+        Ok(stored == password)
+    }
+
+    pub fn list_all_questions(&self) -> Result<Vec<QuestionWithCreator>> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare(
+            "SELECT q.id, q.creator_id, q.text, q.time_limit_secs, q.created_at,
+                    (SELECT COUNT(*) FROM recordings r WHERE r.question_id = q.id) as submission_count
+             FROM questions q
+             ORDER BY q.created_at DESC",
+        )?;
+        let rows = stmt.query_map([], |row| {
+            Ok(QuestionWithCreator {
+                id: row.get(0)?,
+                creator_id: row.get(1)?,
+                text: row.get(2)?,
+                time_limit_secs: row.get(3)?,
+                created_at: row.get(4)?,
+                submission_count: row.get(5)?,
+            })
+        })?;
+        rows.collect()
+    }
+
+    pub fn delete_question(&self, id: &str) -> Result<bool> {
+        let conn = self.conn.lock().unwrap();
+        // Delete associated feedbacks first
+        conn.execute("DELETE FROM feedbacks WHERE question_id = ?1", params![id])?;
+        let affected = conn.execute("DELETE FROM questions WHERE id = ?1", params![id])?;
+        Ok(affected > 0)
+    }
+
+    pub fn delete_recording_admin(&self, id: &str) -> Result<Option<String>> {
+        let conn = self.conn.lock().unwrap();
+        // Get audio path before delete
+        let audio_path: Option<String> = conn
+            .query_row("SELECT audio_path FROM recordings WHERE id = ?1", params![id], |row| row.get(0))
+            .ok();
+        // Delete associated feedbacks
+        conn.execute("DELETE FROM feedbacks WHERE recording_id = ?1", params![id])?;
+        conn.execute("DELETE FROM recordings WHERE id = ?1", params![id])?;
+        Ok(audio_path)
+    }
+
+    // --- Batch question creation ---
+
+    pub fn insert_questions_batch(&self, creator_id: &str, questions: &[(String, i32)]) -> Result<Vec<String>> {
+        let conn = self.conn.lock().unwrap();
+        let mut ids = Vec::new();
+        for (text, time_limit_secs) in questions {
+            let id = uuid::Uuid::new_v4().to_string();
+            conn.execute(
+                "INSERT INTO questions (id, creator_id, text, time_limit_secs)
+                 VALUES (?1, ?2, ?3, ?4)",
+                params![id, creator_id, text, time_limit_secs],
+            )?;
+            ids.push(id);
+        }
+        Ok(ids)
+    }
+
+    // --- Feedback methods ---
+
+    pub fn insert_feedback(&self, recording_id: &str, question_id: &str, feedback_text: &str, created_by: &str) -> Result<String> {
+        let id = uuid::Uuid::new_v4().to_string();
+        let conn = self.conn.lock().unwrap();
+        conn.execute(
+            "INSERT INTO feedbacks (id, recording_id, question_id, feedback_text, created_by)
+             VALUES (?1, ?2, ?3, ?4, ?5)",
+            params![id, recording_id, question_id, feedback_text, created_by],
+        )?;
+        Ok(id)
+    }
+
+    pub fn get_feedbacks_for_recording(&self, recording_id: &str) -> Result<Vec<Feedback>> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare(
+            "SELECT id, recording_id, question_id, feedback_text, created_by, created_at
+             FROM feedbacks WHERE recording_id = ?1 ORDER BY created_at DESC",
+        )?;
+        let rows = stmt.query_map(params![recording_id], |row| {
+            Ok(Feedback {
+                id: row.get(0)?,
+                recording_id: row.get(1)?,
+                question_id: row.get(2)?,
+                feedback_text: row.get(3)?,
+                created_by: row.get(4)?,
+                created_at: row.get(5)?,
             })
         })?;
         rows.collect()

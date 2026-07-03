@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import api, { Word, Fluency } from '../lib/api';
+import api, { Word, Fluency, Feedback } from '../lib/api';
 import WordPills from './WordPills';
 import FluencyDisplay from './FluencyDisplay';
 import { getScoreTextColor, computeIeltsBand } from '../lib/utils';
@@ -17,6 +17,7 @@ interface SharedRecording {
 export default function ShareView() {
   const { id } = useParams<{ id: string }>();
   const [recording, setRecording] = useState<SharedRecording | null>(null);
+  const [feedbacks, setFeedbacks] = useState<Feedback[]>([]);
   const [error, setError] = useState(false);
 
   useEffect(() => {
@@ -35,6 +36,8 @@ export default function ShareView() {
         });
       })
       .catch(() => setError(true));
+
+    api.getFeedbacks(id).then(setFeedbacks).catch(() => {});
   }, [id]);
 
   if (error) {
@@ -115,6 +118,28 @@ export default function ShareView() {
 
         {/* Word analysis */}
         <WordPills words={recording.words} audioBlob={null} audioUrl={audioUrl} />
+
+        {/* Feedback section */}
+        {feedbacks.length > 0 && (
+          <div className="mt-8 pt-6 border-t border-gray-200">
+            <div className="text-xs uppercase text-zinc-400 tracking-wide mb-3">
+              💬 Feedback from teacher
+            </div>
+            <div className="space-y-3">
+              {feedbacks.map((fb) => (
+                <div
+                  key={fb.id}
+                  className="p-3 bg-indigo-50 border border-indigo-200 rounded-lg"
+                >
+                  <p className="text-sm text-zinc-800">{fb.feedback_text}</p>
+                  <p className="text-xs text-zinc-500 mt-1">
+                    {new Date(fb.created_at).toLocaleString()}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* CTA */}
         <div className="mt-8 pt-6 border-t border-gray-200 text-center">

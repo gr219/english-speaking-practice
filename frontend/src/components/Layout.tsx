@@ -6,9 +6,12 @@ interface LayoutProps {
   sidebar?: React.ReactNode;
   questionsSidebar?: React.ReactNode;
   rightPanel?: React.ReactNode;
+  isAdmin?: boolean;
+  onAdminLogin?: () => void;
+  onAdminPanel?: () => void;
 }
 
-export default function Layout({ children, sidebar, questionsSidebar, rightPanel }: LayoutProps) {
+export default function Layout({ children, sidebar, questionsSidebar, rightPanel, isAdmin = false, onAdminLogin, onAdminPanel }: LayoutProps) {
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [isQuestionsOpen, setIsQuestionsOpen] = useState(false);
   const [isDark, setIsDark] = useState(() => {
@@ -40,13 +43,32 @@ export default function Layout({ children, sidebar, questionsSidebar, rightPanel
         <div className="text-sm font-bold text-white tracking-wide">
           🏠 COZY LAN ENGLISH
         </div>
-        <button
-          onClick={() => setIsDark(!isDark)}
-          className="text-white/80 hover:text-white text-sm"
-          title={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
-        >
-          {isDark ? '☀️' : '🌙'}
-        </button>
+        <div className="flex items-center gap-2">
+          {isAdmin ? (
+            <button
+              onClick={onAdminPanel}
+              className="px-2 py-1 text-xs bg-yellow-400 text-yellow-900 rounded font-semibold hover:bg-yellow-300 transition-colors"
+              title="Open Admin Panel"
+            >
+              🛡️ Admin
+            </button>
+          ) : (
+            <button
+              onClick={onAdminLogin}
+              className="px-2 py-1 text-xs bg-white/20 text-white rounded hover:bg-white/30 transition-colors"
+              title="Admin Login"
+            >
+              🔐 Admin
+            </button>
+          )}
+          <button
+            onClick={() => setIsDark(!isDark)}
+            className="text-white/80 hover:text-white text-sm"
+            title={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
+          >
+            {isDark ? '☀️' : '🌙'}
+          </button>
+        </div>
       </div>
 
       {/* Main area */}

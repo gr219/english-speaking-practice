@@ -182,6 +182,76 @@ const api = {
     if (!res.ok) throw new Error('Failed to list questions');
     return res.json();
   },
+
+  // Admin endpoints
+  async verifyAdmin(password: string): Promise<boolean> {
+    const res = await fetch('/api/admin/verify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password }),
+    });
+    if (!res.ok) return false;
+    const data = await res.json();
+    return data.valid;
+  },
+
+  async adminListQuestions(adminToken: string): Promise<QuestionWithCreator[]> {
+    const res = await fetch('/api/admin/questions', {
+      headers: { 'X-Admin-Token': adminToken },
+    });
+    if (!res.ok) throw new Error('Failed to list questions');
+    return res.json();
+  },
+
+  async adminDeleteQuestion(id: string, adminToken: string): Promise<void> {
+    const res = await fetch(`/api/admin/questions/${id}`, {
+      method: 'DELETE',
+      headers: { 'X-Admin-Token': adminToken },
+    });
+    if (!res.ok) throw new Error('Failed to delete question');
+  },
+
+  async adminDeleteRecording(id: string, adminToken: string): Promise<void> {
+    const res = await fetch(`/api/admin/recordings/${id}`, {
+      method: 'DELETE',
+      headers: { 'X-Admin-Token': adminToken },
+    });
+    if (!res.ok) throw new Error('Failed to delete recording');
+  },
+
+  // Batch question creation
+  async createQuestionsBatch(questions: { text: string; time_limit_secs: number }[], userId: string): Promise<{ ids: string[] }> {
+    const res = await fetch('/api/questions/batch', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-User-Id': userId,
+      },
+      body: JSON.stringify(questions),
+    });
+    if (!res.ok) throw new Error('Failed to create questions');
+    return res.json();
+  },
+
+  // Feedback endpoints
+  async createFeedback(recordingId: string, questionId: string, feedbackText: string, userId: string): Promise<{ id: string }> {
+    const res = await fetch(`/api/recordings/${recordingId}/feedback`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-User-Id': userId,
+      },
+      body: JSON.stringify({ feedback_text: feedbackText, question_id: questionId }),
+    });
+    if (!res.ok) throw new Error('Failed to submit feedback');
+    return res.json();
+  },
+
+  async getFeedbacks(recordingId: string): Promise<Feedback[]> {
+    const res = await fetch(`/api/recordings/${recordingId}/feedback`);
+    if (!res.ok) throw new Error('Failed to get feedbacks');
+    return res.json();
+  },
 };
 
 export interface LeaderboardEntry {
@@ -198,6 +268,24 @@ export interface QuestionSummary {
   time_limit_secs: number;
   created_at: string;
   submission_count: number;
+}
+
+export interface QuestionWithCreator {
+  id: string;
+  creator_id: string;
+  text: string;
+  time_limit_secs: number;
+  created_at: string;
+  submission_count: number;
+}
+
+export interface Feedback {
+  id: string;
+  recording_id: string;
+  question_id: string;
+  feedback_text: string;
+  created_by: string;
+  created_at: string;
 }
 
 export default api;

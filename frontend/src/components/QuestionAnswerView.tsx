@@ -189,6 +189,9 @@ export default function QuestionAnswerView() {
                     Copy
                   </button>
                 </div>
+                <p className="text-xs text-zinc-400 mt-2">
+                  💡 Check this link later for teacher feedback on your submission.
+                </p>
               </div>
             </div>
           </div>
