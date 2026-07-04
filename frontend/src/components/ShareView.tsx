@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import api, { Word, Fluency, Feedback } from '../lib/api';
+import api, { Word, Fluency, Grammar, Feedback } from '../lib/api';
 import WordPills from './WordPills';
 import FluencyDisplay from './FluencyDisplay';
-import { getScoreTextColor, computeIeltsBand } from '../lib/utils';
+import GrammarDisplay from './GrammarDisplay';
+import { getScoreTextColor } from '../lib/utils';
 
 interface SharedRecording {
   id: string;
@@ -11,7 +12,8 @@ interface SharedRecording {
   score: number;
   words: Word[];
   fluency: Fluency | null;
-  ielts_band: number;
+  grammar: Grammar | null;
+  ielts_band: number | null;
 }
 
 export default function ShareView() {
@@ -26,13 +28,15 @@ export default function ShareView() {
       .getRecording(id)
       .then((rec) => {
         const fluency = rec.fluency_json ? JSON.parse(rec.fluency_json) : null;
+        const grammar = rec.grammar_json ? JSON.parse(rec.grammar_json) : null;
         setRecording({
           id: rec.id,
           text: rec.text,
           score: rec.score,
           words: JSON.parse(rec.words_json),
           fluency,
-          ielts_band: computeIeltsBand(rec.score, fluency?.score ?? null, null),
+          grammar,
+          ielts_band: rec.ielts_band,
         });
       })
       .catch(() => setError(true));
@@ -90,6 +94,19 @@ export default function ShareView() {
           </Link>
         </div>
 
+        {/* IELTS Band */}
+        {recording.ielts_band != null && (
+          <div className="mb-6 p-4 bg-indigo-50 border border-indigo-200 rounded-lg flex items-center justify-between">
+            <div>
+              <div className="text-xs uppercase text-indigo-400 tracking-wide">IELTS Speaking Band</div>
+              <div className="text-2xl font-bold text-indigo-700">{recording.ielts_band.toFixed(1)}</div>
+            </div>
+            <div className="text-xs text-indigo-500 max-w-[180px] text-right">
+              Based on pronunciation, fluency, and grammar
+            </div>
+          </div>
+        )}
+
         {/* Score */}
         <div className="flex items-center justify-between mb-6">
           <div>
@@ -109,6 +126,9 @@ export default function ShareView() {
 
         {/* Fluency analysis */}
         <FluencyDisplay fluency={recording.fluency} />
+
+        {/* Grammar analysis */}
+        <GrammarDisplay grammar={recording.grammar} />
 
         {/* Recognized text */}
         <div className="mb-4">

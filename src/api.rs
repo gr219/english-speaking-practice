@@ -12,6 +12,11 @@ use axum::routing::{delete, get, post};
 use axum::{Json, Router};
 use serde::{Deserialize, Serialize};
 
+#[derive(Serialize)]
+struct ErrorResponse {
+    error: String,
+}
+
 fn extract_user_id(headers: &HeaderMap) -> Option<String> {
     headers
         .get("x-user-id")
@@ -51,7 +56,7 @@ async fn speech_recognition_handler(
     state: State<ServerState>,
     headers: HeaderMap,
     mut multipart: Multipart,
-) -> Result<impl IntoResponse, StatusCode> {
+) -> Result<impl IntoResponse, (StatusCode, Json<ErrorResponse>)> {
     let user_id = extract_user_id(&headers).unwrap_or_default();
     let speaker_name = headers
         .get("x-speaker-name")
@@ -86,62 +91,84 @@ async fn speech_recognition_handler(
         }
     }
 
-    let audio_bytes = audio_bytes.ok_or(StatusCode::BAD_REQUEST)?;
+    let audio_bytes = audio_bytes.ok_or_else(|| (StatusCode::BAD_REQUEST, Json(ErrorResponse {
+        error: "No valid WAV audio data received. Please ensure your microphone is working.".to_string(),
+    })))?;
     let mut cursor = std::io::Cursor::new(&audio_bytes);
-    let reader = wav::read(&mut cursor).map_err(|_| StatusCode::BAD_REQUEST)?;
-    let samples = reader.1.as_sixteen().ok_or(StatusCode::BAD_REQUEST)?;
+    let reader = wav::read(&mut cursor).map_err(|_| (StatusCode::BAD_REQUEST, Json(ErrorResponse {
+        error: "Invalid audio format. Please try recording again.".to_string(),
+    })))?;
+    let samples = reader.1.as_sixteen().ok_or_else(|| (StatusCode::BAD_REQUEST, Json(ErrorResponse {
+        error: "Audio must be 16-bit WAV format. Please try recording again.".to_string(),
+    })))?;
 
-    if let Some(mut rec) = SpeechEngine::create_recognizer(reader.0.sampling_rate as f32) {
-        for chunk in samples.chunks(100) {
-            rec.accept_waveform(chunk);
-        }
-        if let Some(single) = rec.final_result().single() {
-            let mut result = SpeechAnalyzeResult::from_vosk(single);
+    let mut rec = SpeechEngine::create_recognizer(reader.0.sampling_rate as f32)
+        .ok_or_else(|| (StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorResponse {
+            error: "Speech recognition engine unavailable. Please try again later.".to_string(),
+        })))?;
 
-            // Compute fluency and grammar, then IELTS band
-            result.fluency = analyze_fluency(&result.words);
-            result.example_text = target_text.clone();
-            result.grammar = analyze_grammar(
-                &result.text,
-                target_text.as_deref(),
-            );
-            result.compute_ielts_band();
-
-            // Save audio file
-            let audio_filename = format!("{}.wav", uuid::Uuid::new_v4());
-            let audio_path = format!("./audio/{}", audio_filename);
-            std::fs::write(&audio_path, &audio_bytes)
-                .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-
-            // Save to database
-            let words_json = serde_json::to_string(&result.words)
-                .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-
-            let fluency_json = result.fluency.as_ref()
-                .map(|f| serde_json::to_string(f).unwrap_or_default());
-
-            let new_recording = NewRecording {
-                user_id,
-                text: result.text.clone(),
-                score: result.score,
-                words_json,
-                fluency_json,
-                example_text: target_text,
-                speaker_name,
-                audio_path: audio_filename,
-                question_id,
-            };
-
-            let id = state
-                .db
-                .insert_recording(&new_recording)
-                .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-
-            result.id = id;
-            return Ok(Json(result));
-        }
+    for chunk in samples.chunks(100) {
+        rec.accept_waveform(chunk);
     }
-    Err(StatusCode::INTERNAL_SERVER_ERROR)
+
+    let single = rec.final_result().single().ok_or_else(|| (StatusCode::UNPROCESSABLE_ENTITY, Json(ErrorResponse {
+        error: "No speech detected. Please speak clearly and try again.".to_string(),
+    })))?;
+
+    let mut result = SpeechAnalyzeResult::from_vosk(single);
+
+    // Compute fluency and grammar, then IELTS band
+    result.fluency = analyze_fluency(&result.words);
+    result.example_text = target_text.clone();
+    result.grammar = analyze_grammar(
+        &result.text,
+        target_text.as_deref(),
+    );
+    result.compute_ielts_band();
+
+    // Save audio file
+    let audio_filename = format!("{}.wav", uuid::Uuid::new_v4());
+    let audio_path = format!("./audio/{}", audio_filename);
+    std::fs::write(&audio_path, &audio_bytes)
+        .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorResponse {
+            error: "Failed to save audio file. Please try again.".to_string(),
+        })))?;
+
+    // Save to database
+    let words_json = serde_json::to_string(&result.words)
+        .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorResponse {
+            error: "Internal processing error. Please try again.".to_string(),
+        })))?;
+
+    let fluency_json = result.fluency.as_ref()
+        .map(|f| serde_json::to_string(f).unwrap_or_default());
+
+    let grammar_json = result.grammar.as_ref()
+        .map(|g| serde_json::to_string(g).unwrap_or_default());
+
+    let new_recording = NewRecording {
+        user_id,
+        text: result.text.clone(),
+        score: result.score,
+        words_json,
+        fluency_json,
+        grammar_json,
+        ielts_band: result.ielts_band,
+        example_text: target_text,
+        speaker_name,
+        audio_path: audio_filename,
+        question_id,
+    };
+
+    let id = state
+        .db
+        .insert_recording(&new_recording)
+        .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorResponse {
+            error: "Failed to save recording. Please try again.".to_string(),
+        })))?;
+
+    result.id = id;
+    Ok(Json(result))
 }
 
 #[derive(Deserialize)]
@@ -196,24 +223,34 @@ async fn delete_recording_handler(
     state: State<ServerState>,
     headers: HeaderMap,
     Path(id): Path<String>,
-) -> Result<impl IntoResponse, StatusCode> {
-    let user_id = extract_user_id(&headers).ok_or(StatusCode::UNAUTHORIZED)?;
+) -> Result<impl IntoResponse, (StatusCode, Json<ErrorResponse>)> {
+    let user_id = extract_user_id(&headers).ok_or_else(|| (StatusCode::UNAUTHORIZED, Json(ErrorResponse {
+        error: "User ID is required.".to_string(),
+    })))?;
 
     // Get recording to find audio file path
     let recording = state
         .db
         .get_recording(&id)
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
-        .ok_or(StatusCode::NOT_FOUND)?;
+        .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorResponse {
+            error: "Failed to look up recording.".to_string(),
+        })))?
+        .ok_or_else(|| (StatusCode::NOT_FOUND, Json(ErrorResponse {
+            error: "Recording not found. It may have already been deleted.".to_string(),
+        })))?;
 
     // Admin can delete anyone's recording
     let deleted = if is_admin(&state, &headers) {
         state.db.delete_recording_admin(&id)
-            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+            .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorResponse {
+                error: "Failed to delete recording from database.".to_string(),
+            })))?;
         true
     } else {
         state.db.delete_recording(&id, &user_id)
-            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+            .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorResponse {
+                error: "Failed to delete recording from database.".to_string(),
+            })))?
     };
 
     if deleted {
@@ -222,7 +259,9 @@ async fn delete_recording_handler(
         let _ = std::fs::remove_file(&audio_path);
         Ok(StatusCode::NO_CONTENT)
     } else {
-        Err(StatusCode::FORBIDDEN)
+        Err((StatusCode::FORBIDDEN, Json(ErrorResponse {
+            error: "You do not have permission to delete this recording.".to_string(),
+        })))
     }
 }
 
@@ -370,14 +409,33 @@ async fn admin_delete_recording_handler(
     state: State<ServerState>,
     headers: HeaderMap,
     Path(id): Path<String>,
-) -> Result<impl IntoResponse, StatusCode> {
+) -> Result<impl IntoResponse, (StatusCode, Json<ErrorResponse>)> {
     if !is_admin(&state, &headers) {
-        return Err(StatusCode::FORBIDDEN);
+        return Err((StatusCode::FORBIDDEN, Json(ErrorResponse {
+            error: "Admin access required.".to_string(),
+        })));
     }
+
+    // Verify recording exists before deleting
+    let exists = state
+        .db
+        .get_recording(&id)
+        .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorResponse {
+            error: "Failed to look up recording.".to_string(),
+        })))?;
+
+    if exists.is_none() {
+        return Err((StatusCode::NOT_FOUND, Json(ErrorResponse {
+            error: "Recording not found. It may have already been deleted.".to_string(),
+        })));
+    }
+
     let audio_path = state
         .db
         .delete_recording_admin(&id)
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorResponse {
+            error: "Failed to delete recording from database.".to_string(),
+        })))?;
     if let Some(path) = audio_path {
         let full_path = format!("./audio/{}", path);
         let _ = std::fs::remove_file(&full_path);

@@ -54,6 +54,8 @@ export interface RecordingDetail {
   score: number;
   words_json: string;
   fluency_json: string | null;
+  grammar_json: string | null;
+  ielts_band: number | null;
   example_text: string | null;
   audio_path: string;
   created_at: string;
@@ -102,7 +104,10 @@ const api = {
       headers,
       body: formData,
     });
-    if (!res.ok) throw new Error('Analysis failed');
+    if (!res.ok) {
+      const body = await res.json().catch(() => null);
+      throw new Error(body?.error || 'Analysis failed');
+    }
     return res.json();
   },
 
@@ -133,7 +138,10 @@ const api = {
       method: 'DELETE',
       headers,
     });
-    if (!res.ok) throw new Error('Failed to delete recording');
+    if (!res.ok) {
+      const body = await res.json().catch(() => null);
+      throw new Error(body?.error || 'Failed to delete recording');
+    }
   },
 
   async lookupPronounce(words: string[]): Promise<string[]> {
@@ -220,7 +228,10 @@ const api = {
       method: 'DELETE',
       headers: { 'X-Admin-Token': adminToken },
     });
-    if (!res.ok) throw new Error('Failed to delete recording');
+    if (!res.ok) {
+      const body = await res.json().catch(() => null);
+      throw new Error(body?.error || 'Failed to delete recording');
+    }
   },
 
   // Batch question creation

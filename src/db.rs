@@ -15,6 +15,8 @@ pub struct NewRecording {
     pub score: f64,
     pub words_json: String,
     pub fluency_json: Option<String>,
+    pub grammar_json: Option<String>,
+    pub ielts_band: Option<f64>,
     pub example_text: Option<String>,
     pub speaker_name: Option<String>,
     pub audio_path: String,
@@ -29,6 +31,8 @@ pub struct Recording {
     pub score: f64,
     pub words_json: String,
     pub fluency_json: Option<String>,
+    pub grammar_json: Option<String>,
+    pub ielts_band: Option<f64>,
     pub example_text: Option<String>,
     pub speaker_name: Option<String>,
     pub audio_path: String,
@@ -143,6 +147,22 @@ impl Database {
             conn.execute_batch("ALTER TABLE recordings ADD COLUMN question_id TEXT;")?;
         }
 
+        // Migrate: add grammar_json column if missing
+        let has_grammar: bool = conn
+            .prepare("SELECT grammar_json FROM recordings LIMIT 0")
+            .is_ok();
+        if !has_grammar {
+            conn.execute_batch("ALTER TABLE recordings ADD COLUMN grammar_json TEXT;")?;
+        }
+
+        // Migrate: add ielts_band column if missing
+        let has_ielts: bool = conn
+            .prepare("SELECT ielts_band FROM recordings LIMIT 0")
+            .is_ok();
+        if !has_ielts {
+            conn.execute_batch("ALTER TABLE recordings ADD COLUMN ielts_band REAL;")?;
+        }
+
         // Create questions table
         conn.execute_batch(
             "CREATE TABLE IF NOT EXISTS questions (
@@ -198,8 +218,8 @@ impl Database {
         let id = uuid::Uuid::new_v4().to_string();
         let conn = self.conn.lock().unwrap();
         conn.execute(
-            "INSERT INTO recordings (id, user_id, text, score, words_json, fluency_json, example_text, speaker_name, audio_path, question_id)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+            "INSERT INTO recordings (id, user_id, text, score, words_json, fluency_json, grammar_json, ielts_band, example_text, speaker_name, audio_path, question_id)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
             params![
                 id,
                 recording.user_id,
@@ -207,6 +227,8 @@ impl Database {
                 recording.score,
                 recording.words_json,
                 recording.fluency_json,
+                recording.grammar_json,
+                recording.ielts_band,
                 recording.example_text,
                 recording.speaker_name,
                 recording.audio_path,
@@ -219,7 +241,7 @@ impl Database {
     pub fn get_recording(&self, id: &str) -> Result<Option<Recording>> {
         let conn = self.conn.lock().unwrap();
         let mut stmt = conn.prepare(
-            "SELECT id, user_id, text, score, words_json, fluency_json, example_text, speaker_name, audio_path, created_at, question_id
+            "SELECT id, user_id, text, score, words_json, fluency_json, grammar_json, ielts_band, example_text, speaker_name, audio_path, created_at, question_id
              FROM recordings WHERE id = ?1",
         )?;
         let mut rows = stmt.query_map(params![id], |row| {
@@ -230,11 +252,13 @@ impl Database {
                 score: row.get(3)?,
                 words_json: row.get(4)?,
                 fluency_json: row.get(5)?,
-                example_text: row.get(6)?,
-                speaker_name: row.get(7)?,
-                audio_path: row.get(8)?,
-                created_at: row.get(9)?,
-                question_id: row.get(10)?,
+                grammar_json: row.get(6)?,
+                ielts_band: row.get(7)?,
+                example_text: row.get(8)?,
+                speaker_name: row.get(9)?,
+                audio_path: row.get(10)?,
+                created_at: row.get(11)?,
+                question_id: row.get(12)?,
             })
         })?;
         match rows.next() {

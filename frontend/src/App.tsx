@@ -15,7 +15,6 @@ import { AnalyzeResult, Word } from './lib/api';
 import api from './lib/api';
 import { useUserId } from './hooks/useUserId';
 import { useAdmin } from './hooks/useAdmin';
-import { computeIeltsBand } from './lib/utils';
 
 function MainPage() {
   const userId = useUserId();
@@ -55,15 +54,16 @@ function MainPage() {
       const recording = await api.getRecording(id);
       const words: Word[] = JSON.parse(recording.words_json);
       const fluency = recording.fluency_json ? JSON.parse(recording.fluency_json) : null;
+      const grammar = recording.grammar_json ? JSON.parse(recording.grammar_json) : null;
       setCurrentResult({
         id: recording.id,
         text: recording.text,
         words,
         score: recording.score,
         fluency,
-        grammar: null,
+        grammar,
         example_text: recording.example_text,
-        ielts_band: computeIeltsBand(recording.score, fluency?.score ?? null, null),
+        ielts_band: recording.ielts_band,
       });
       setAudioBlob(null);
       setActiveRecordingId(id);
@@ -81,8 +81,8 @@ function MainPage() {
       setAudioBlob(null);
       setActiveRecordingId(null);
       setRefreshTrigger((n) => n + 1);
-    } catch {
-      // Handle error
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Failed to delete recording');
     }
   };
 

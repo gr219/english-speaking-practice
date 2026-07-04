@@ -63,8 +63,8 @@ export function useRecorder(): UseRecorderReturn {
         try {
           const analyzeResult = await api.analyze(blob, userId, targetTextRef.current, speakerNameRef.current, questionIdRef.current);
           setResult(analyzeResult);
-        } catch {
-          setError('Analysis failed — please try again');
+        } catch (err) {
+          setError(err instanceof Error ? err.message : 'Analysis failed — please try again');
         } finally {
           setIsAnalyzing(false);
         }

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import api, { RecordingSummary } from '../lib/api';
 import { formatRelativeTime, getScoreTextColor, truncateText } from '../lib/utils';
+import { useAdmin } from '../hooks/useAdmin';
 
 interface HistorySidebarProps {
   userId: string;
@@ -20,6 +21,7 @@ export default function HistorySidebar({
   const [recordings, setRecordings] = useState<RecordingSummary[]>([]);
   const [selectMode, setSelectMode] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const { getAdminToken } = useAdmin();
 
   useEffect(() => {
     api.getRecordings(userId).then(setRecordings).catch(() => {});
@@ -37,10 +39,16 @@ export default function HistorySidebar({
   const handleBulkDelete = async () => {
     if (selected.size === 0) return;
     if (!confirm(`Delete ${selected.size} recording(s)?`)) return;
+    const failures: string[] = [];
     for (const id of selected) {
       try {
-        await api.deleteRecording(id, userId);
-      } catch { /* skip failures */ }
+        await api.deleteRecording(id, userId, getAdminToken() || undefined);
+      } catch (err) {
+        failures.push(err instanceof Error ? err.message : 'Unknown error');
+      }
+    }
+    if (failures.length > 0) {
+      alert(`Failed to delete ${failures.length} recording(s): ${failures[0]}`);
     }
     setSelected(new Set());
     setSelectMode(false);
