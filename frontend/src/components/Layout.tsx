@@ -13,7 +13,11 @@ interface LayoutProps {
 
 export default function Layout({ children, sidebar, questionsSidebar, rightPanel, isAdmin = false, onAdminLogin, onAdminPanel }: LayoutProps) {
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
-  const [isQuestionsOpen, setIsQuestionsOpen] = useState(false);
+  const [isQuestionsOpen, setIsQuestionsOpen] = useState(isAdmin);
+
+  useEffect(() => {
+    if (isAdmin) setIsQuestionsOpen(true);
+  }, [isAdmin]);
   const [isDark, setIsDark] = useState(() => {
     return localStorage.getItem('speech_dark_mode') === 'true' ||
       (!localStorage.getItem('speech_dark_mode') && window.matchMedia('(prefers-color-scheme: dark)').matches);
