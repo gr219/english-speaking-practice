@@ -7,7 +7,9 @@ use axum::Router;
 use tower_http::services::ServeDir;
 use tower_http::trace::TraceLayer;
 use tracing::info;
-use tracing_subscriber::{fmt, EnvFilter};
+use tracing_subscriber::{fmt, fmt::time::OffsetTime, EnvFilter};
+use time::macros::format_description;
+use time::UtcOffset;
 
 use crate::state::ServerState;
 
@@ -36,8 +38,13 @@ async fn main() {
     // Initialize tracing with env filter (default: info, override with RUST_LOG)
     let filter = EnvFilter::try_from_default_env()
         .unwrap_or_else(|_| EnvFilter::new("info,tower_http=debug"));
+    let timer = OffsetTime::new(
+        UtcOffset::from_hms(7, 0, 0).expect("Valid UTC+7 offset"),
+        format_description!("[year]-[month]-[day]T[hour]:[minute]:[second].[subsecond digits:3][offset_hour sign:mandatory]:[offset_minute]"),
+    );
     fmt()
         .with_env_filter(filter)
+        .with_timer(timer)
         .with_target(true)
         .with_thread_ids(false)
         .with_file(true)

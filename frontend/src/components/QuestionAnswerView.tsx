@@ -130,7 +130,10 @@ export default function QuestionAnswerView() {
               <div className="grid grid-cols-3 gap-4">
                 <div className="text-center">
                   <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
-                    {result.score.toFixed(1)}%
+                    {(result.words.length > 0
+                      ? (result.words.reduce((sum, w) => sum + w.score, 0) / result.words.length * 100)
+                      : 0
+                    ).toFixed(1)}%
                   </div>
                   <div className="text-sm text-zinc-600 dark:text-zinc-400">Pronunciation</div>
                 </div>

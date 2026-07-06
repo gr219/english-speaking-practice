@@ -76,11 +76,18 @@ impl SpeechAnalyzeResult {
     }
 
     pub fn compute_ielts_band(&mut self) {
-        let pronunciation_score = self.score;
+        let pronunciation_score = if self.words.is_empty() {
+            0.0
+        } else {
+            self.words.iter().map(|w| w.score as f64).sum::<f64>() / self.words.len() as f64 * 100.0
+        };
         let fluency_score = self.fluency.as_ref().map(|f| f.score).unwrap_or(pronunciation_score);
         let grammar_score = self.grammar.as_ref().map(|g| g.score).unwrap_or(pronunciation_score);
         // Weighted: 40% pronunciation, 30% fluency, 30% grammar
         let combined = pronunciation_score * 0.4 + fluency_score * 0.3 + grammar_score * 0.3;
+
+        // Update overall score to reflect the combined value
+        self.score = combined;
         // Map 0-100 to IELTS 1.0-9.0
         let band = if combined >= 95.0 {
             9.0

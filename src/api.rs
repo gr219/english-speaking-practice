@@ -59,13 +59,23 @@ async fn speech_recognition_handler(
     mut multipart: Multipart,
 ) -> Result<impl IntoResponse, (StatusCode, Json<ErrorResponse>)> {
     let user_id = extract_user_id(&headers).unwrap_or_default();
+    let user_agent = headers
+        .get("user-agent")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("unknown")
+        .to_string();
+    let content_length = headers
+        .get("content-length")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("unknown")
+        .to_string();
     let speaker_name = headers
         .get("x-speaker-name")
         .and_then(|v| v.to_str().ok())
         .filter(|s| !s.is_empty())
         .map(|s| s.to_string());
 
-    info!(user_id = %user_id, speaker_name = ?speaker_name, "Analyze request received");
+    info!(user_id = %user_id, speaker_name = ?speaker_name, user_agent = %user_agent, content_length = %content_length, "Analyze request received");
 
     // Speaker name is required
     if speaker_name.is_none() {
@@ -82,7 +92,7 @@ async fn speech_recognition_handler(
 
     // Read all multipart fields
     while let Some(field) = multipart.next_field().await.map_err(|e| {
-        error!(user_id = %user_id, error = %e, "Failed to read multipart form data");
+        error!(user_id = %user_id, user_agent = %user_agent, content_length = %content_length, error = %e, "Failed to read multipart form data");
         (StatusCode::BAD_REQUEST, Json(ErrorResponse {
             error: "Failed to read form data. Please try again.".to_string(),
         }))
@@ -93,7 +103,7 @@ async fn speech_recognition_handler(
             audio_content_type = ct.clone();
             if ct.as_deref() == Some("audio/wav") || ct.as_deref() == Some("audio/x-wav") {
                 let buffer = field.bytes().await.map_err(|e| {
-                    error!(user_id = %user_id, error = %e, "Failed to read audio bytes from upload");
+                    error!(user_id = %user_id, user_agent = %user_agent, content_length = %content_length, error = %e, "Failed to read audio bytes from upload");
                     (StatusCode::BAD_REQUEST, Json(ErrorResponse {
                         error: "Failed to read audio data. Please try again.".to_string(),
                     }))
