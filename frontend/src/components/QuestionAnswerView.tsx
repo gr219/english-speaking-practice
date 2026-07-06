@@ -259,7 +259,7 @@ export default function QuestionAnswerView() {
                 <div className="text-sm text-zinc-600 dark:text-zinc-400 mb-2">Preview:</div>
                 <div className="text-zinc-800 dark:text-zinc-200 mb-2">{result.text}</div>
                 <div className="text-sm text-zinc-600 dark:text-zinc-400">
-                  Score: <span className="font-semibold">{(result.score * 100).toFixed(1)}%</span>
+                  Score: <span className="font-semibold">{result.score.toFixed(1)}%</span>
                 </div>
               </div>
               <div className="flex gap-2">
