@@ -249,6 +249,14 @@ const api = {
     }
   },
 
+  async adminGetRecentSubmissions(adminToken: string, since: string): Promise<RecentSubmission[]> {
+    const res = await fetch(`/api/admin/submissions/recent?since=${encodeURIComponent(since)}`, {
+      headers: { 'X-Admin-Token': adminToken },
+    });
+    if (!res.ok) return [];
+    return res.json();
+  },
+
   // Batch question creation
   async createQuestionsBatch(questions: { text: string; time_limit_secs: number }[], userId: string): Promise<{ ids: string[] }> {
     const res = await fetch('/api/questions/batch', {
@@ -315,6 +323,15 @@ export interface Feedback {
   question_id: string;
   feedback_text: string;
   created_by: string;
+  created_at: string;
+}
+
+export interface RecentSubmission {
+  id: string;
+  speaker_name: string | null;
+  score: number;
+  question_id: string | null;
+  question_text: string | null;
   created_at: string;
 }
 

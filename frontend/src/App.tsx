@@ -15,11 +15,13 @@ import { AnalyzeResult, Word } from './lib/api';
 import api from './lib/api';
 import { useUserId } from './hooks/useUserId';
 import { useAdmin } from './hooks/useAdmin';
+import { useAdminNotifications } from './hooks/useAdminNotifications';
 
 function MainPage() {
   const userId = useUserId();
   const navigate = useNavigate();
   const { isAdmin, login, getAdminToken } = useAdmin();
+  useAdminNotifications(getAdminToken());
   const [showAdminLogin, setShowAdminLogin] = useState(false);
   const [currentResult, setCurrentResult] = useState<AnalyzeResult | null>(null);
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);

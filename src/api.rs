@@ -450,6 +450,26 @@ async fn admin_verify_handler(
     Ok(Json(AdminVerifyResponse { valid }))
 }
 
+#[derive(Deserialize)]
+pub struct AdminRecentSubmissionsQuery {
+    pub since: String,
+}
+
+async fn admin_recent_submissions_handler(
+    state: State<ServerState>,
+    headers: HeaderMap,
+    Query(query): Query<AdminRecentSubmissionsQuery>,
+) -> Result<impl IntoResponse, StatusCode> {
+    if !is_admin(&state, &headers) {
+        return Err(StatusCode::FORBIDDEN);
+    }
+    let submissions = state
+        .db
+        .get_recent_submissions(&query.since)
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    Ok(Json(submissions))
+}
+
 async fn admin_list_questions_handler(
     state: State<ServerState>,
     headers: HeaderMap,
@@ -600,6 +620,7 @@ pub fn router() -> Router<ServerState, Body> {
         .route("/questions/:id", delete(delete_question_by_creator_handler))
         .route("/questions/:id/submissions", get(get_question_submissions_handler))
         .route("/admin/verify", post(admin_verify_handler))
+        .route("/admin/submissions/recent", get(admin_recent_submissions_handler))
         .route("/admin/questions", get(admin_list_questions_handler))
         .route("/admin/questions/:id", delete(admin_delete_question_handler))
         .route("/admin/recordings/:id", delete(admin_delete_recording_handler))

@@ -105,6 +105,16 @@ pub struct QuestionWithCreator {
     pub submission_count: i32,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RecentSubmission {
+    pub id: String,
+    pub speaker_name: Option<String>,
+    pub score: f64,
+    pub question_id: Option<String>,
+    pub question_text: Option<String>,
+    pub created_at: String,
+}
+
 impl Database {
     pub fn new(db_path: &str) -> Result<Self> {
         let conn = Connection::open(db_path)?;
@@ -520,5 +530,28 @@ impl Database {
             params![ielts_band, id],
         )?;
         Ok(())
+    }
+
+    pub fn get_recent_submissions(&self, since: &str) -> Result<Vec<RecentSubmission>> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare(
+            "SELECT r.id, r.speaker_name, r.score, r.question_id, q.text, r.created_at
+             FROM recordings r
+             LEFT JOIN questions q ON r.question_id = q.id
+             WHERE r.created_at > ?1
+             ORDER BY r.created_at DESC
+             LIMIT 50",
+        )?;
+        let rows = stmt.query_map(params![since], |row| {
+            Ok(RecentSubmission {
+                id: row.get(0)?,
+                speaker_name: row.get(1)?,
+                score: row.get(2)?,
+                question_id: row.get(3)?,
+                question_text: row.get(4)?,
+                created_at: row.get(5)?,
+            })
+        })?;
+        rows.collect()
     }
 }
