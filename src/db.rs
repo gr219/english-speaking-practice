@@ -434,6 +434,24 @@ impl Database {
         Ok(affected > 0)
     }
 
+    pub fn delete_question_by_creator(&self, id: &str, creator_id: &str) -> Result<bool> {
+        let conn = self.conn.lock().unwrap();
+        // Verify ownership
+        let is_owner: bool = conn
+            .query_row(
+                "SELECT COUNT(*) FROM questions WHERE id = ?1 AND creator_id = ?2",
+                params![id, creator_id],
+                |row| row.get::<_, i32>(0),
+            )
+            .unwrap_or(0) > 0;
+        if !is_owner {
+            return Ok(false);
+        }
+        conn.execute("DELETE FROM feedbacks WHERE question_id = ?1", params![id])?;
+        conn.execute("DELETE FROM questions WHERE id = ?1", params![id])?;
+        Ok(true)
+    }
+
     pub fn delete_recording_admin(&self, id: &str) -> Result<Option<String>> {
         let conn = self.conn.lock().unwrap();
         // Get audio path before delete
@@ -493,5 +511,14 @@ impl Database {
             })
         })?;
         rows.collect()
+    }
+
+    pub fn update_ielts_band(&self, id: &str, ielts_band: f64) -> Result<()> {
+        let conn = self.conn.lock().unwrap();
+        conn.execute(
+            "UPDATE recordings SET ielts_band = ?1 WHERE id = ?2",
+            params![ielts_band, id],
+        )?;
+        Ok(())
     }
 }

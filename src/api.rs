@@ -64,6 +64,13 @@ async fn speech_recognition_handler(
         .filter(|s| !s.is_empty())
         .map(|s| s.to_string());
 
+    // Speaker name is required
+    if speaker_name.is_none() {
+        return Err((StatusCode::BAD_REQUEST, Json(ErrorResponse {
+            error: "Speaker name is required. Please enter your full name.".to_string(),
+        })));
+    }
+
     let mut audio_bytes: Option<Vec<u8>> = None;
     let mut target_text: Option<String> = None;
     let mut question_id: Option<String> = None;
@@ -191,11 +198,45 @@ async fn get_recording_handler(
     state: State<ServerState>,
     Path(id): Path<String>,
 ) -> Result<impl IntoResponse, StatusCode> {
-    let recording = state
+    let mut recording = state
         .db
         .get_recording(&id)
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
         .ok_or(StatusCode::NOT_FOUND)?;
+
+    // Lazy backfill: compute and persist IELTS band if missing
+    if recording.ielts_band.is_none() {
+        let score = recording.score;
+        let fluency_score = recording.fluency_json.as_ref()
+            .and_then(|json| serde_json::from_str::<serde_json::Value>(json).ok())
+            .and_then(|v| v.get("score").and_then(|s| s.as_f64()));
+        let grammar_score = recording.grammar_json.as_ref()
+            .and_then(|json| serde_json::from_str::<serde_json::Value>(json).ok())
+            .and_then(|v| v.get("score").and_then(|s| s.as_f64()));
+
+        let f = fluency_score.unwrap_or(score);
+        let g = grammar_score.unwrap_or(score);
+        let combined = score * 0.4 + f * 0.3 + g * 0.3;
+        let band = if combined >= 95.0 {
+            9.0
+        } else if combined >= 85.0 {
+            8.0 + (combined - 85.0) / 10.0
+        } else if combined >= 75.0 {
+            7.0 + (combined - 75.0) / 10.0
+        } else if combined >= 60.0 {
+            6.0 + (combined - 60.0) / 15.0
+        } else if combined >= 45.0 {
+            5.0 + (combined - 45.0) / 15.0
+        } else if combined >= 30.0 {
+            4.0 + (combined - 30.0) / 15.0
+        } else {
+            (combined / 30.0 * 3.0 + 1.0_f64).max(1.0)
+        };
+        let ielts_band = (band * 2.0).round() / 2.0;
+        let _ = state.db.update_ielts_band(&id, ielts_band);
+        recording.ielts_band = Some(ielts_band);
+    }
+
     Ok(Json(recording))
 }
 
@@ -347,6 +388,43 @@ async fn list_questions_handler(
         .list_questions(&query.creator_id)
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     Ok(Json(questions))
+}
+
+async fn delete_question_by_creator_handler(
+    state: State<ServerState>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+) -> Result<impl IntoResponse, (StatusCode, Json<ErrorResponse>)> {
+    let user_id = extract_user_id(&headers).ok_or_else(|| (StatusCode::UNAUTHORIZED, Json(ErrorResponse {
+        error: "User ID is required.".to_string(),
+    })))?;
+
+    // Admin can also delete via this endpoint
+    if is_admin(&state, &headers) {
+        let deleted = state.db.delete_question(&id)
+            .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorResponse {
+                error: "Failed to delete question.".to_string(),
+            })))?;
+        if deleted {
+            return Ok(StatusCode::NO_CONTENT);
+        } else {
+            return Err((StatusCode::NOT_FOUND, Json(ErrorResponse {
+                error: "Question not found.".to_string(),
+            })));
+        }
+    }
+
+    let deleted = state.db.delete_question_by_creator(&id, &user_id)
+        .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorResponse {
+            error: "Failed to delete question.".to_string(),
+        })))?;
+    if deleted {
+        Ok(StatusCode::NO_CONTENT)
+    } else {
+        Err((StatusCode::FORBIDDEN, Json(ErrorResponse {
+            error: "You do not have permission to delete this question.".to_string(),
+        })))
+    }
 }
 
 // --- Admin endpoints ---
@@ -519,6 +597,7 @@ pub fn router() -> Router<ServerState, Body> {
         .route("/questions", get(list_questions_handler))
         .route("/questions/batch", post(create_questions_batch_handler))
         .route("/questions/:id", get(get_question_handler))
+        .route("/questions/:id", delete(delete_question_by_creator_handler))
         .route("/questions/:id/submissions", get(get_question_submissions_handler))
         .route("/admin/verify", post(admin_verify_handler))
         .route("/admin/questions", get(admin_list_questions_handler))

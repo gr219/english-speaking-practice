@@ -53,9 +53,13 @@ export default function RecordingView({ onResult, prefillText }: RecordingViewPr
     if (isRecording) {
       stopRecording();
     } else {
+      if (!speakerName.trim()) {
+        alert('Please enter your full name before recording.');
+        return;
+      }
       reset();
       const targetText = useCustom && customText.trim() ? customText.trim() : example?.text || '';
-      startRecording(targetText || undefined, speakerName || undefined);
+      startRecording(targetText || undefined, speakerName.trim() || undefined);
     }
   };
 
@@ -85,7 +89,7 @@ export default function RecordingView({ onResult, prefillText }: RecordingViewPr
                 type="text"
                 value={speakerName}
                 onChange={(e) => handleNameChange(e.target.value)}
-                placeholder="Your name (optional)"
+                placeholder="Your full name (required)"
                 className="w-full px-4 py-2 border border-gray-200 dark:border-zinc-600 rounded-lg text-sm text-zinc-800 dark:text-zinc-200 bg-white dark:bg-zinc-800 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-zinc-300 dark:focus:ring-zinc-600 focus:border-transparent"
               />
             </div>

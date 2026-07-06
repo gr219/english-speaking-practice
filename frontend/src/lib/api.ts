@@ -195,6 +195,21 @@ const api = {
     return res.json();
   },
 
+  async deleteQuestion(id: string, userId: string, adminToken?: string): Promise<void> {
+    const headers: Record<string, string> = { 'X-User-Id': userId };
+    if (adminToken) {
+      headers['X-Admin-Token'] = adminToken;
+    }
+    const res = await fetch(`/api/questions/${id}`, {
+      method: 'DELETE',
+      headers,
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(() => null);
+      throw new Error(body?.error || 'Failed to delete question');
+    }
+  },
+
   // Admin endpoints
   async verifyAdmin(password: string): Promise<boolean> {
     const res = await fetch('/api/admin/verify', {
