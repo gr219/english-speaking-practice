@@ -5,19 +5,27 @@ const POLL_INTERVAL = 15_000; // 15 seconds
 
 export function useAdminNotifications(adminToken: string | null) {
   const lastCheckedRef = useRef<string>(new Date().toISOString());
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const tokenRef = useRef<string | null>(adminToken);
+  tokenRef.current = adminToken;
 
   useEffect(() => {
     if (!adminToken) return;
 
     // Request notification permission on mount
     if ('Notification' in window && Notification.permission === 'default') {
-      Notification.requestPermission();
+      Notification.requestPermission().then((perm) => {
+        if (perm === 'granted') {
+          // Do an immediate poll now that permission is granted
+          poll();
+        }
+      });
     }
 
     const poll = async () => {
+      const token = tokenRef.current;
+      if (!token) return;
       try {
-        const submissions = await api.adminGetRecentSubmissions(adminToken, lastCheckedRef.current);
+        const submissions = await api.adminGetRecentSubmissions(token, lastCheckedRef.current);
         if (submissions.length > 0) {
           // Update last checked to the most recent submission's timestamp
           lastCheckedRef.current = submissions[0].created_at;
@@ -31,7 +39,7 @@ export function useAdminNotifications(adminToken: string | null) {
                 : 'free practice';
               new Notification('🎙️ New Submission', {
                 body: `${speaker} scored ${sub.score.toFixed(0)}% on ${question}`,
-                tag: sub.id, // Prevent duplicates
+                tag: sub.id,
               });
             }
           }
@@ -41,10 +49,10 @@ export function useAdminNotifications(adminToken: string | null) {
       }
     };
 
-    intervalRef.current = setInterval(poll, POLL_INTERVAL);
+    // Poll immediately on start, then every interval
+    poll();
+    const id = setInterval(poll, POLL_INTERVAL);
 
-    return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current);
-    };
+    return () => clearInterval(id);
   }, [adminToken]);
 }
