@@ -5,6 +5,9 @@ use axum::response::IntoResponse;
 use axum::routing::get;
 use axum::Router;
 use tower_http::services::ServeDir;
+use tower_http::trace::TraceLayer;
+use tracing::info;
+use tracing_subscriber::{fmt, EnvFilter};
 
 use crate::state::ServerState;
 
@@ -30,6 +33,17 @@ async fn spa_fallback() -> impl IntoResponse {
 
 #[tokio::main]
 async fn main() {
+    // Initialize tracing with env filter (default: info, override with RUST_LOG)
+    let filter = EnvFilter::try_from_default_env()
+        .unwrap_or_else(|_| EnvFilter::new("info,tower_http=debug"));
+    fmt()
+        .with_env_filter(filter)
+        .with_target(true)
+        .with_thread_ids(false)
+        .with_file(true)
+        .with_line_number(true)
+        .init();
+
     // Create required directories
     std::fs::create_dir_all("./audio").expect("Failed to create audio directory");
     std::fs::create_dir_all("./db").expect("Failed to create db directory");
@@ -43,10 +57,11 @@ async fn main() {
         .nest_service("/assets", ServeDir::new("./public/assets"))
         .nest_service("/lib", ServeDir::new("./public/lib"))
         .fallback(get(spa_fallback))
+        .layer(TraceLayer::new_for_http())
         .with_state(ServerState::new(database));
 
     let port = std::env::var("PORT").unwrap_or("3000".to_string());
-    println!("Server starting on port {port}");
+    info!(port = %port, "Server starting");
     axum::Server::bind(&format!("0.0.0.0:{port}").parse().unwrap())
         .serve(app.into_make_service())
         .await

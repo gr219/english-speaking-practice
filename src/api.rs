@@ -11,6 +11,7 @@ use axum::response::IntoResponse;
 use axum::routing::{delete, get, post};
 use axum::{Json, Router};
 use serde::{Deserialize, Serialize};
+use tracing::{error, info, warn};
 
 #[derive(Serialize)]
 struct ErrorResponse {
@@ -64,8 +65,11 @@ async fn speech_recognition_handler(
         .filter(|s| !s.is_empty())
         .map(|s| s.to_string());
 
+    info!(user_id = %user_id, speaker_name = ?speaker_name, "Analyze request received");
+
     // Speaker name is required
     if speaker_name.is_none() {
+        warn!(user_id = %user_id, "Analyze rejected: missing speaker name");
         return Err((StatusCode::BAD_REQUEST, Json(ErrorResponse {
             error: "Speaker name is required. Please enter your full name.".to_string(),
         })));
@@ -74,16 +78,29 @@ async fn speech_recognition_handler(
     let mut audio_bytes: Option<Vec<u8>> = None;
     let mut target_text: Option<String> = None;
     let mut question_id: Option<String> = None;
+    let mut audio_content_type: Option<String> = None;
 
     // Read all multipart fields
-    while let Some(field) = multipart.next_field().await.expect("Could not read form data") {
+    while let Some(field) = multipart.next_field().await.map_err(|e| {
+        error!(user_id = %user_id, error = %e, "Failed to read multipart form data");
+        (StatusCode::BAD_REQUEST, Json(ErrorResponse {
+            error: "Failed to read form data. Please try again.".to_string(),
+        }))
+    })? {
         let name = field.name().unwrap_or("").to_string();
         if name == "audio" {
-            if field.content_type().eq(&Some("audio/wav"))
-                || field.content_type().eq(&Some("audio/x-wav"))
-            {
-                let buffer = field.bytes().await.expect("Could not read audio data!");
+            let ct = field.content_type().map(|s| s.to_string());
+            audio_content_type = ct.clone();
+            if ct.as_deref() == Some("audio/wav") || ct.as_deref() == Some("audio/x-wav") {
+                let buffer = field.bytes().await.map_err(|e| {
+                    error!(user_id = %user_id, error = %e, "Failed to read audio bytes from upload");
+                    (StatusCode::BAD_REQUEST, Json(ErrorResponse {
+                        error: "Failed to read audio data. Please try again.".to_string(),
+                    }))
+                })?;
                 audio_bytes = Some(buffer.to_vec());
+            } else {
+                warn!(user_id = %user_id, content_type = ?ct, "Audio field has unsupported content type");
             }
         } else if name == "target_text" {
             let text = field.text().await.unwrap_or_default();
@@ -98,29 +115,52 @@ async fn speech_recognition_handler(
         }
     }
 
-    let audio_bytes = audio_bytes.ok_or_else(|| (StatusCode::BAD_REQUEST, Json(ErrorResponse {
-        error: "No valid WAV audio data received. Please ensure your microphone is working.".to_string(),
-    })))?;
-    let mut cursor = std::io::Cursor::new(&audio_bytes);
-    let reader = wav::read(&mut cursor).map_err(|_| (StatusCode::BAD_REQUEST, Json(ErrorResponse {
-        error: "Invalid audio format. Please try recording again.".to_string(),
-    })))?;
-    let samples = reader.1.as_sixteen().ok_or_else(|| (StatusCode::BAD_REQUEST, Json(ErrorResponse {
-        error: "Audio must be 16-bit WAV format. Please try recording again.".to_string(),
-    })))?;
+    let audio_bytes = audio_bytes.ok_or_else(|| {
+        warn!(user_id = %user_id, content_type = ?audio_content_type, "No valid WAV audio received");
+        (StatusCode::BAD_REQUEST, Json(ErrorResponse {
+            error: "No valid WAV audio data received. Please ensure your microphone is working.".to_string(),
+        }))
+    })?;
 
-    let mut rec = SpeechEngine::create_recognizer(reader.0.sampling_rate as f32)
-        .ok_or_else(|| (StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorResponse {
-            error: "Speech recognition engine unavailable. Please try again later.".to_string(),
-        })))?;
+    info!(user_id = %user_id, audio_size = audio_bytes.len(), target_text = ?target_text, question_id = ?question_id, "Processing audio");
+
+    let mut cursor = std::io::Cursor::new(&audio_bytes);
+    let reader = wav::read(&mut cursor).map_err(|e| {
+        error!(user_id = %user_id, audio_size = audio_bytes.len(), error = %e, "WAV parse failed");
+        (StatusCode::BAD_REQUEST, Json(ErrorResponse {
+            error: "Invalid audio format. Please try recording again.".to_string(),
+        }))
+    })?;
+
+    let sample_rate = reader.0.sampling_rate;
+    let channels = reader.0.channel_count;
+    let samples = reader.1.as_sixteen().ok_or_else(|| {
+        error!(user_id = %user_id, sample_rate = sample_rate, channels = channels, "Audio is not 16-bit PCM");
+        (StatusCode::BAD_REQUEST, Json(ErrorResponse {
+            error: "Audio must be 16-bit WAV format. Please try recording again.".to_string(),
+        }))
+    })?;
+
+    info!(user_id = %user_id, sample_rate = sample_rate, channels = channels, num_samples = samples.len(), "WAV decoded successfully");
+
+    let mut rec = SpeechEngine::create_recognizer(sample_rate as f32)
+        .ok_or_else(|| {
+            error!(user_id = %user_id, sample_rate = sample_rate, "Failed to create speech recognizer");
+            (StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorResponse {
+                error: "Speech recognition engine unavailable. Please try again later.".to_string(),
+            }))
+        })?;
 
     for chunk in samples.chunks(100) {
         rec.accept_waveform(chunk);
     }
 
-    let single = rec.final_result().single().ok_or_else(|| (StatusCode::UNPROCESSABLE_ENTITY, Json(ErrorResponse {
-        error: "No speech detected. Please speak clearly and try again.".to_string(),
-    })))?;
+    let single = rec.final_result().single().ok_or_else(|| {
+        warn!(user_id = %user_id, num_samples = samples.len(), sample_rate = sample_rate, duration_secs = samples.len() as f32 / sample_rate as f32, "No speech detected in audio");
+        (StatusCode::UNPROCESSABLE_ENTITY, Json(ErrorResponse {
+            error: "No speech detected. Please speak clearly and try again.".to_string(),
+        }))
+    })?;
 
     let mut result = SpeechAnalyzeResult::from_vosk(single);
 
@@ -133,19 +173,27 @@ async fn speech_recognition_handler(
     );
     result.compute_ielts_band();
 
+    info!(user_id = %user_id, recognized_text = %result.text, score = result.score, ielts_band = ?result.ielts_band, "Speech analysis complete");
+
     // Save audio file
     let audio_filename = format!("{}.wav", uuid::Uuid::new_v4());
     let audio_path = format!("./audio/{}", audio_filename);
     std::fs::write(&audio_path, &audio_bytes)
-        .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorResponse {
-            error: "Failed to save audio file. Please try again.".to_string(),
-        })))?;
+        .map_err(|e| {
+            error!(user_id = %user_id, path = %audio_path, error = %e, "Failed to write audio file to disk");
+            (StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorResponse {
+                error: "Failed to save audio file. Please try again.".to_string(),
+            }))
+        })?;
 
     // Save to database
     let words_json = serde_json::to_string(&result.words)
-        .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorResponse {
-            error: "Internal processing error. Please try again.".to_string(),
-        })))?;
+        .map_err(|e| {
+            error!(user_id = %user_id, error = %e, "Failed to serialize words to JSON");
+            (StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorResponse {
+                error: "Internal processing error. Please try again.".to_string(),
+            }))
+        })?;
 
     let fluency_json = result.fluency.as_ref()
         .map(|f| serde_json::to_string(f).unwrap_or_default());
@@ -154,7 +202,7 @@ async fn speech_recognition_handler(
         .map(|g| serde_json::to_string(g).unwrap_or_default());
 
     let new_recording = NewRecording {
-        user_id,
+        user_id: user_id.clone(),
         text: result.text.clone(),
         score: result.score,
         words_json,
@@ -170,10 +218,14 @@ async fn speech_recognition_handler(
     let id = state
         .db
         .insert_recording(&new_recording)
-        .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorResponse {
-            error: "Failed to save recording. Please try again.".to_string(),
-        })))?;
+        .map_err(|e| {
+            error!(user_id = %user_id, error = %e, "Failed to insert recording into database");
+            (StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorResponse {
+                error: "Failed to save recording. Please try again.".to_string(),
+            }))
+        })?;
 
+    info!(user_id = %user_id, recording_id = %id, "Recording saved successfully");
     result.id = id;
     Ok(Json(result))
 }
@@ -269,13 +321,18 @@ async fn delete_recording_handler(
         error: "User ID is required.".to_string(),
     })))?;
 
+    info!(user_id = %user_id, recording_id = %id, is_admin = is_admin(&state, &headers), "Delete recording request");
+
     // Get recording to find audio file path
     let recording = state
         .db
         .get_recording(&id)
-        .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorResponse {
-            error: "Failed to look up recording.".to_string(),
-        })))?
+        .map_err(|e| {
+            error!(recording_id = %id, error = %e, "Failed to look up recording for deletion");
+            (StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorResponse {
+                error: "Failed to look up recording.".to_string(),
+            }))
+        })?
         .ok_or_else(|| (StatusCode::NOT_FOUND, Json(ErrorResponse {
             error: "Recording not found. It may have already been deleted.".to_string(),
         })))?;
@@ -283,23 +340,31 @@ async fn delete_recording_handler(
     // Admin can delete anyone's recording
     let deleted = if is_admin(&state, &headers) {
         state.db.delete_recording_admin(&id)
-            .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorResponse {
-                error: "Failed to delete recording from database.".to_string(),
-            })))?;
+            .map_err(|e| {
+                error!(recording_id = %id, error = %e, "Admin delete recording failed");
+                (StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorResponse {
+                    error: "Failed to delete recording from database.".to_string(),
+                }))
+            })?;
         true
     } else {
         state.db.delete_recording(&id, &user_id)
-            .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorResponse {
-                error: "Failed to delete recording from database.".to_string(),
-            })))?
+            .map_err(|e| {
+                error!(recording_id = %id, user_id = %user_id, error = %e, "Delete recording failed");
+                (StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorResponse {
+                    error: "Failed to delete recording from database.".to_string(),
+                }))
+            })?
     };
 
     if deleted {
         // Remove audio file (best-effort)
         let audio_path = format!("./audio/{}", recording.audio_path);
         let _ = std::fs::remove_file(&audio_path);
+        info!(recording_id = %id, "Recording deleted successfully");
         Ok(StatusCode::NO_CONTENT)
     } else {
+        warn!(recording_id = %id, user_id = %user_id, owner = %recording.user_id, "Permission denied for recording deletion");
         Err((StatusCode::FORBIDDEN, Json(ErrorResponse {
             error: "You do not have permission to delete this recording.".to_string(),
         })))
@@ -344,10 +409,15 @@ async fn create_question_handler(
     Json(req): Json<CreateQuestionRequest>,
 ) -> Result<impl IntoResponse, StatusCode> {
     let creator_id = extract_user_id(&headers).unwrap_or_default();
+    info!(creator_id = %creator_id, text_len = req.text.len(), time_limit = req.time_limit_secs, "Creating question");
     let id = state
         .db
         .insert_question(&creator_id, &req.text, req.time_limit_secs)
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        .map_err(|e| {
+            error!(creator_id = %creator_id, error = %e, "Failed to insert question");
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
+    info!(creator_id = %creator_id, question_id = %id, "Question created");
     Ok(Json(CreateQuestionResponse { id }))
 }
 
@@ -446,7 +516,13 @@ async fn admin_verify_handler(
     let valid = state
         .db
         .verify_admin_password(&req.password)
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        .map_err(|e| {
+            error!(error = %e, "Admin verify password failed");
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
+    if !valid {
+        warn!("Failed admin login attempt");
+    }
     Ok(Json(AdminVerifyResponse { valid }))
 }
 
