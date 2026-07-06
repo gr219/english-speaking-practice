@@ -5,7 +5,7 @@ use crate::grammar::analyze_grammar;
 use crate::speech::SpeechEngine;
 use crate::state::ServerState;
 use axum::body::Body;
-use axum::extract::{Multipart, Path, Query, State};
+use axum::extract::{DefaultBodyLimit, Multipart, Path, Query, State};
 use axum::http::{HeaderMap, StatusCode};
 use axum::response::IntoResponse;
 use axum::routing::{delete, get, post};
@@ -710,4 +710,5 @@ pub fn router() -> Router<ServerState, Body> {
         .route("/admin/questions", get(admin_list_questions_handler))
         .route("/admin/questions/:id", delete(admin_delete_question_handler))
         .route("/admin/recordings/:id", delete(admin_delete_recording_handler))
+        .layer(DefaultBodyLimit::max(20 * 1024 * 1024)) // 20MB for audio uploads
 }
