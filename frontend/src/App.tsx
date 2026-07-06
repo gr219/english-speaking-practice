@@ -21,7 +21,6 @@ function MainPage() {
   const userId = useUserId();
   const navigate = useNavigate();
   const { isAdmin, login, getAdminToken } = useAdmin();
-  useAdminNotifications(getAdminToken());
   const [showAdminLogin, setShowAdminLogin] = useState(false);
   const [currentResult, setCurrentResult] = useState<AnalyzeResult | null>(null);
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
@@ -173,6 +172,9 @@ function AdminPage() {
 }
 
 export default function App() {
+  const { getAdminToken } = useAdmin();
+  useAdminNotifications(getAdminToken());
+
   return (
     <Routes>
       <Route path="/" element={<MainPage />} />
