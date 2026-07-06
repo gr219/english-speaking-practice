@@ -1,25 +1,33 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import api, { QuestionSummary } from '../lib/api';
+import api, { QuestionSummary, QuestionWithCreator } from '../lib/api';
 import { truncateText, formatRelativeTime } from '../lib/utils';
 import { useAdmin } from '../hooks/useAdmin';
 
 interface MyQuestionsProps {
   userId: string;
   refreshTrigger: number;
+  isAdmin?: boolean;
+  adminToken?: string | null;
   onRefresh?: () => void;
 }
 
-export default function MyQuestions({ userId, refreshTrigger, onRefresh }: MyQuestionsProps) {
-  const [questions, setQuestions] = useState<QuestionSummary[]>([]);
+export default function MyQuestions({ userId, refreshTrigger, isAdmin, adminToken, onRefresh }: MyQuestionsProps) {
+  const [questions, setQuestions] = useState<(QuestionSummary | QuestionWithCreator)[]>([]);
   const [selectMode, setSelectMode] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const { getAdminToken } = useAdmin();
   const navigate = useNavigate();
 
   useEffect(() => {
-    api.listQuestions(userId).then(setQuestions).catch(() => {});
-  }, [userId, refreshTrigger]);
+    if (isAdmin && adminToken) {
+      api.adminListQuestions(adminToken).then(setQuestions).catch(() => {});
+    } else {
+      api.listQuestions(userId).then(setQuestions).catch(() => {});
+    }
+  }, [userId, refreshTrigger, isAdmin, adminToken]);
+
+  const title = isAdmin ? 'All Questions' : 'My Questions';
 
   const toggleSelect = (id: string) => {
     setSelected((prev) => {
@@ -47,7 +55,11 @@ export default function MyQuestions({ userId, refreshTrigger, onRefresh }: MyQue
     setSelected(new Set());
     setSelectMode(false);
     onRefresh?.();
-    api.listQuestions(userId).then(setQuestions).catch(() => {});
+    if (isAdmin && adminToken) {
+      api.adminListQuestions(adminToken).then(setQuestions).catch(() => {});
+    } else {
+      api.listQuestions(userId).then(setQuestions).catch(() => {});
+    }
   };
 
   const selectAll = () => {
@@ -57,7 +69,7 @@ export default function MyQuestions({ userId, refreshTrigger, onRefresh }: MyQue
   if (questions.length === 0) {
     return (
       <div className="p-4">
-        <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100 mb-4">My Questions</h3>
+        <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100 mb-4">{title}</h3>
         <p className="text-xs text-zinc-400">No questions created yet.</p>
       </div>
     );
@@ -66,7 +78,7 @@ export default function MyQuestions({ userId, refreshTrigger, onRefresh }: MyQue
   return (
     <div className="p-4">
       <div className="flex items-center justify-between mb-4">
-        <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">My Questions</h3>
+        <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">{title}</h3>
         <button
           onClick={() => { setSelectMode(!selectMode); setSelected(new Set()); }}
           className="text-[11px] text-zinc-500 hover:text-zinc-700"

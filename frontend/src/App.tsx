@@ -107,7 +107,7 @@ function MainPage() {
 
   const leaderboard = <Leaderboard refreshTrigger={refreshTrigger} onSelectRecording={handleSelectRecording} />;
 
-  const questionsSidebar = <MyQuestions userId={userId} refreshTrigger={refreshTrigger} onRefresh={() => setRefreshTrigger((n) => n + 1)} />;
+  const questionsSidebar = <MyQuestions userId={userId} refreshTrigger={refreshTrigger} isAdmin={isAdmin} adminToken={getAdminToken()} onRefresh={() => setRefreshTrigger((n) => n + 1)} />;
 
   if (currentResult) {
     return (
