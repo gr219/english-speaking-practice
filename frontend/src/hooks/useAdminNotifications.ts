@@ -11,14 +11,9 @@ export function useAdminNotifications(adminToken: string | null) {
   useEffect(() => {
     if (!adminToken) return;
 
-    // Request notification permission on mount
+    // Request notification permission
     if ('Notification' in window && Notification.permission === 'default') {
-      Notification.requestPermission().then((perm) => {
-        if (perm === 'granted') {
-          // Do an immediate poll now that permission is granted
-          poll();
-        }
-      });
+      Notification.requestPermission();
     }
 
     const poll = async () => {
@@ -26,11 +21,10 @@ export function useAdminNotifications(adminToken: string | null) {
       if (!token) return;
       try {
         const submissions = await api.adminGetRecentSubmissions(token, lastCheckedRef.current);
+        console.log(`[AdminNotify] polled since=${lastCheckedRef.current}, found=${submissions.length}`);
         if (submissions.length > 0) {
-          // Update last checked to the most recent submission's timestamp
           lastCheckedRef.current = submissions[0].created_at;
 
-          // Show notifications
           if ('Notification' in window && Notification.permission === 'granted') {
             for (const sub of submissions) {
               const speaker = sub.speaker_name || 'Anonymous';
@@ -42,17 +36,30 @@ export function useAdminNotifications(adminToken: string | null) {
                 tag: sub.id,
               });
             }
+          } else {
+            console.warn(`[AdminNotify] Notification permission: ${Notification.permission}`);
           }
         }
-      } catch {
-        // Silently fail
+      } catch (err) {
+        console.error('[AdminNotify] poll error:', err);
       }
     };
 
-    // Poll immediately on start, then every interval
+    // Poll immediately, then on interval
     poll();
     const id = setInterval(poll, POLL_INTERVAL);
 
-    return () => clearInterval(id);
+    // Also poll when tab becomes visible (Chrome throttles background tabs)
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        poll();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+
+    return () => {
+      clearInterval(id);
+      document.removeEventListener('visibilitychange', handleVisibility);
+    };
   }, [adminToken]);
 }
