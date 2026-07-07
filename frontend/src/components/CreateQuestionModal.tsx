@@ -18,6 +18,9 @@ export default function CreateQuestionModal({ onClose }: CreateQuestionModalProp
   const [isCreating, setIsCreating] = useState(false);
   const [createdIds, setCreatedIds] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [includeQuestion, setIncludeQuestion] = useState(true);
+  const [includeStudentLink, setIncludeStudentLink] = useState(true);
+  const [includeResultsLink, setIncludeResultsLink] = useState(true);
 
   const handleNumChange = (value: string) => {
     const num = parseInt(value);
@@ -68,8 +71,27 @@ export default function CreateQuestionModal({ onClose }: CreateQuestionModalProp
     }
   };
 
-  const copyToClipboard = (url: string) => {
-    navigator.clipboard.writeText(url);
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text);
+  };
+
+  const generateBulkText = () => {
+    return createdIds
+      .map((id, i) => {
+        const lines: string[] = [];
+        if (includeQuestion) {
+          const q = questions[i];
+          lines.push(q ? q.text : `Question ${i + 1}`);
+        }
+        if (includeStudentLink) {
+          lines.push(`${window.location.origin}/q/${id}`);
+        }
+        if (includeResultsLink) {
+          lines.push(`${window.location.origin}/q/${id}/results`);
+        }
+        return lines.join('\n');
+      })
+      .join('\n\n');
   };
 
   if (createdIds.length > 0) {
@@ -127,6 +149,63 @@ export default function CreateQuestionModal({ onClose }: CreateQuestionModalProp
             );
           })}
         </div>
+
+        {/* Bulk copy section */}
+        <div className="mt-4 border border-gray-200 dark:border-zinc-600 rounded-lg p-4">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-sm font-semibold text-zinc-700 dark:text-zinc-300">
+              📋 Copy All Links
+            </h3>
+          </div>
+          <div className="flex flex-wrap gap-4 mb-3">
+            <label className="flex items-center gap-1.5 text-xs text-zinc-600 dark:text-zinc-400 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={includeQuestion}
+                onChange={(e) => setIncludeQuestion(e.target.checked)}
+                className="rounded border-gray-300 dark:border-zinc-600"
+              />
+              Question text
+            </label>
+            <label className="flex items-center gap-1.5 text-xs text-zinc-600 dark:text-zinc-400 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={includeStudentLink}
+                onChange={(e) => setIncludeStudentLink(e.target.checked)}
+                className="rounded border-gray-300 dark:border-zinc-600"
+              />
+              Student link
+            </label>
+            <label className="flex items-center gap-1.5 text-xs text-zinc-600 dark:text-zinc-400 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={includeResultsLink}
+                onChange={(e) => setIncludeResultsLink(e.target.checked)}
+                className="rounded border-gray-300 dark:border-zinc-600"
+              />
+              Results link
+            </label>
+          </div>
+          {(includeQuestion || includeStudentLink || includeResultsLink) ? (
+            <>
+              <textarea
+                readOnly
+                value={generateBulkText()}
+                rows={Math.min(12, createdIds.length * 4)}
+                className="w-full px-3 py-2 text-xs font-mono bg-gray-50 dark:bg-zinc-700 border border-gray-200 dark:border-zinc-600 rounded text-zinc-800 dark:text-zinc-200 resize-none focus:outline-none"
+              />
+              <button
+                onClick={() => copyToClipboard(generateBulkText())}
+                className="mt-2 w-full px-4 py-2 text-sm bg-green-500 text-white rounded hover:bg-green-600 transition-colors"
+              >
+                Copy All
+              </button>
+            </>
+          ) : (
+            <div className="text-xs text-zinc-400 italic">Select at least one option above</div>
+          )}
+        </div>
+
         <button
           onClick={onClose}
           className="w-full mt-4 px-4 py-2 text-sm bg-gray-200 dark:bg-zinc-700 text-zinc-800 dark:text-zinc-200 rounded hover:bg-gray-300 dark:hover:bg-zinc-600 transition-colors"
