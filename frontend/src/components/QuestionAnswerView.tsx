@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import api, { Question } from '../lib/api';
 import { useRecorder } from '../hooks/useRecorder';
+import { useUserId } from '../hooks/useUserId';
 import RecordButton from './RecordButton';
 import WordPills from './WordPills';
 
@@ -16,7 +17,7 @@ export default function QuestionAnswerView() {
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const { isRecording, isAnalyzing, result, audioBlob, error: recorderError, startRecording, stopRecording, reset } = useRecorder();
-
+  const userId = useUserId();
   useEffect(() => {
     const fetchQuestion = async () => {
       if (!id) return;
@@ -82,7 +83,14 @@ export default function QuestionAnswerView() {
     }
   };
 
-  const handleReRecord = () => {
+  const handleReRecord = async () => {
+    if (result?.id) {
+      try {
+        await api.deleteRecording(result.id, userId);
+      } catch {
+        // Ignore deletion failure — allow re-recording regardless
+      }
+    }
     reset();
     setHasSubmitted(false);
   };
