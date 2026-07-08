@@ -17,9 +17,12 @@ export default function QuestionResultsView() {
   const [feedbackText, setFeedbackText] = useState<Record<string, string>>({});
   const [feedbackSending, setFeedbackSending] = useState<string | null>(null);
   const [feedbackSent, setFeedbackSent] = useState<Record<string, boolean>>({});
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkDeleting, setBulkDeleting] = useState(false);
 
   const isCreator = question?.creator_id === userId;
   const canFeedback = isAdmin || isCreator;
+  const canDelete = isAdmin || isCreator;
 
   useEffect(() => {
     const fetchData = async () => {
@@ -70,13 +73,60 @@ export default function QuestionResultsView() {
 
   const handleDeleteSubmission = async (submissionId: string) => {
     if (!confirm('Delete this submission?')) return;
-    const token = getAdminToken();
-    if (!token) return;
     try {
-      await api.adminDeleteRecording(submissionId, token);
+      if (isAdmin) {
+        const token = getAdminToken();
+        if (!token) return;
+        await api.adminDeleteRecording(submissionId, token);
+      } else {
+        await api.deleteRecording(submissionId, userId);
+      }
       setSubmissions((prev) => prev.filter((s) => s.id !== submissionId));
+      setSelectedIds((prev) => { const next = new Set(prev); next.delete(submissionId); return next; });
     } catch {
       alert('Failed to delete submission');
+    }
+  };
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.size === submissions.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(submissions.map((s) => s.id)));
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedIds.size === 0) return;
+    if (!confirm(`Delete ${selectedIds.size} submission(s)?`)) return;
+    setBulkDeleting(true);
+    const token = isAdmin ? getAdminToken() : null;
+    const failed: string[] = [];
+    for (const sid of selectedIds) {
+      try {
+        if (isAdmin && token) {
+          await api.adminDeleteRecording(sid, token);
+        } else {
+          await api.deleteRecording(sid, userId);
+        }
+      } catch {
+        failed.push(sid);
+      }
+    }
+    setSubmissions((prev) => prev.filter((s) => failed.includes(s.id) || !selectedIds.has(s.id)));
+    setSelectedIds(new Set(failed));
+    setBulkDeleting(false);
+    if (failed.length > 0) {
+      alert(`Failed to delete ${failed.length} submission(s)`);
     }
   };
 
@@ -123,9 +173,39 @@ export default function QuestionResultsView() {
           </div>
         ) : (
           <div className="bg-white dark:bg-zinc-800 border border-gray-200 dark:border-zinc-600 rounded-lg overflow-hidden">
+            {canDelete && selectedIds.size > 0 && (
+              <div className="flex items-center gap-3 px-4 py-2 bg-red-50 dark:bg-red-900/20 border-b border-gray-200 dark:border-zinc-600">
+                <span className="text-sm text-zinc-700 dark:text-zinc-300">
+                  {selectedIds.size} selected
+                </span>
+                <button
+                  onClick={handleBulkDelete}
+                  disabled={bulkDeleting}
+                  className="px-3 py-1 text-xs bg-red-500 text-white rounded hover:bg-red-600 disabled:opacity-50"
+                >
+                  {bulkDeleting ? 'Deleting...' : `Delete ${selectedIds.size}`}
+                </button>
+                <button
+                  onClick={() => setSelectedIds(new Set())}
+                  className="px-3 py-1 text-xs text-zinc-600 dark:text-zinc-300 hover:text-zinc-800 dark:hover:text-zinc-100"
+                >
+                  Clear
+                </button>
+              </div>
+            )}
             <table className="w-full">
               <thead className="bg-gray-50 dark:bg-zinc-700">
                 <tr>
+                  {canDelete && (
+                    <th className="px-4 py-3 w-10">
+                      <input
+                        type="checkbox"
+                        checked={submissions.length > 0 && selectedIds.size === submissions.length}
+                        onChange={toggleSelectAll}
+                        className="rounded border-gray-300 dark:border-zinc-500"
+                      />
+                    </th>
+                  )}
                   <th className="px-4 py-3 text-left text-xs font-semibold text-zinc-600 dark:text-zinc-300 uppercase tracking-wider">
                     Name
                   </th>
@@ -145,7 +225,17 @@ export default function QuestionResultsView() {
               </thead>
               <tbody className="divide-y divide-gray-200 dark:divide-zinc-600">
                 {submissions.map((sub) => (
-                  <tr key={sub.id}>
+                  <tr key={sub.id} className={selectedIds.has(sub.id) ? 'bg-blue-50 dark:bg-blue-900/10' : ''}>
+                    {canDelete && (
+                      <td className="px-4 py-3 w-10">
+                        <input
+                          type="checkbox"
+                          checked={selectedIds.has(sub.id)}
+                          onChange={() => toggleSelect(sub.id)}
+                          className="rounded border-gray-300 dark:border-zinc-500"
+                        />
+                      </td>
+                    )}
                     <td
                       className="px-4 py-3 text-sm text-zinc-800 dark:text-zinc-200 cursor-pointer hover:text-blue-600 dark:hover:text-blue-400"
                       onClick={() => navigate(`/share/${sub.id}`)}
@@ -177,7 +267,7 @@ export default function QuestionResultsView() {
                         >
                           {playingId === sub.id ? '⏸' : '▶'}
                         </button>
-                        {isAdmin && (
+                        {canDelete && (
                           <button
                             onClick={() => handleDeleteSubmission(sub.id)}
                             className="text-red-500 hover:text-red-600 text-xs"
