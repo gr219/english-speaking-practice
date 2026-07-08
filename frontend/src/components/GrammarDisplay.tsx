@@ -33,8 +33,8 @@ export default function GrammarDisplay({ grammar }: GrammarDisplayProps) {
 
       {/* Issues */}
       {grammar.issues.length > 0 && (
-        <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-4 space-y-2">
-          <div className="text-xs uppercase text-amber-700 dark:text-amber-400 tracking-wide font-semibold mb-2">Grammar Issues</div>
+        <div className="bg-amber-100 dark:bg-amber-900/20 border border-amber-300 dark:border-amber-800 rounded-lg p-4 space-y-2">
+          <div className="text-xs uppercase text-amber-800 dark:text-amber-400 tracking-wide font-semibold mb-2">Grammar Issues</div>
           {grammar.issues.map((issue, idx) => (
             <div key={idx} className="flex items-start gap-2 text-sm">
               <span className="flex-shrink-0">{getIssueIcon(issue.kind)}</span>
