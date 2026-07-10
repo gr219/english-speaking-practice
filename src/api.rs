@@ -69,21 +69,13 @@ async fn speech_recognition_handler(
         .and_then(|v| v.to_str().ok())
         .unwrap_or("unknown")
         .to_string();
-    let speaker_name = headers
+    let mut speaker_name = headers
         .get("x-speaker-name")
         .and_then(|v| v.to_str().ok())
         .filter(|s| !s.is_empty())
         .map(|s| s.to_string());
 
     info!(user_id = %user_id, speaker_name = ?speaker_name, user_agent = %user_agent, content_length = %content_length, "Analyze request received");
-
-    // Speaker name is required
-    if speaker_name.is_none() {
-        warn!(user_id = %user_id, "Analyze rejected: missing speaker name");
-        return Err((StatusCode::BAD_REQUEST, Json(ErrorResponse {
-            error: "Speaker name is required. Please enter your full name.".to_string(),
-        })));
-    }
 
     let mut audio_bytes: Option<Vec<u8>> = None;
     let mut target_text: Option<String> = None;
@@ -122,7 +114,20 @@ async fn speech_recognition_handler(
             if !qid.is_empty() {
                 question_id = Some(qid);
             }
+        } else if name == "speaker_name" {
+            let sname = field.text().await.unwrap_or_default();
+            if !sname.is_empty() {
+                speaker_name = Some(sname);
+            }
         }
+    }
+
+    // Speaker name is required
+    if speaker_name.is_none() {
+        warn!(user_id = %user_id, "Analyze rejected: missing speaker name");
+        return Err((StatusCode::BAD_REQUEST, Json(ErrorResponse {
+            error: "Speaker name is required. Please enter your full name.".to_string(),
+        })));
     }
 
     let audio_bytes = audio_bytes.ok_or_else(|| {

@@ -95,13 +95,12 @@ const api = {
     if (questionId) {
       formData.append('question_id', questionId);
     }
-    const headers: Record<string, string> = { 'X-User-Id': userId };
     if (speakerName) {
-      headers['X-Speaker-Name'] = speakerName;
+      formData.append('speaker_name', speakerName);
     }
     const res = await fetch('/api/analyze', {
       method: 'POST',
-      headers,
+      headers: { 'X-User-Id': userId },
       body: formData,
     });
     if (!res.ok) {
