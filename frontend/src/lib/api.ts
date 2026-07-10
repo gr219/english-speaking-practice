@@ -290,6 +290,29 @@ const api = {
     if (!res.ok) throw new Error('Failed to get feedbacks');
     return res.json();
   },
+
+  async submitRecording(id: string, userId: string): Promise<void> {
+    const res = await fetch(`/api/recordings/${id}/submit`, {
+      method: 'POST',
+      headers: { 'X-User-Id': userId },
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(() => null);
+      throw new Error(body?.error || 'Failed to submit recording');
+    }
+  },
+
+  async deleteDraftRecording(id: string, userId: string): Promise<void> {
+    const res = await fetch(`/api/recordings/${id}`, {
+      method: 'DELETE',
+      headers: { 'X-User-Id': userId },
+    });
+    // Ignore 404 — draft may have already been cleaned up
+    if (!res.ok && res.status !== 404) {
+      const body = await res.json().catch(() => null);
+      throw new Error(body?.error || 'Failed to delete draft recording');
+    }
+  },
 };
 
 export interface LeaderboardEntry {

@@ -222,6 +222,7 @@ async fn speech_recognition_handler(
         example_text: target_text,
         speaker_name,
         audio_path: audio_filename,
+        submitted: question_id.is_none(),
         question_id,
     };
 
@@ -654,6 +655,33 @@ async fn create_questions_batch_handler(
     Ok(Json(BatchQuestionResponse { ids }))
 }
 
+async fn submit_recording_handler(
+    state: State<ServerState>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+) -> Result<impl IntoResponse, (StatusCode, Json<ErrorResponse>)> {
+    let user_id = extract_user_id(&headers).ok_or_else(|| (StatusCode::UNAUTHORIZED, Json(ErrorResponse {
+        error: "User ID is required.".to_string(),
+    })))?;
+
+    let updated = state.db.submit_recording(&id, &user_id)
+        .map_err(|e| {
+            error!(recording_id = %id, user_id = %user_id, error = %e, "Failed to submit recording");
+            (StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorResponse {
+                error: "Failed to submit recording.".to_string(),
+            }))
+        })?;
+
+    if updated {
+        info!(recording_id = %id, user_id = %user_id, "Recording submitted successfully");
+        Ok(StatusCode::NO_CONTENT)
+    } else {
+        Err((StatusCode::NOT_FOUND, Json(ErrorResponse {
+            error: "Recording not found or you do not have permission to submit it.".to_string(),
+        })))
+    }
+}
+
 // --- Feedback endpoints ---
 
 #[derive(Deserialize)]
@@ -696,6 +724,7 @@ pub fn router() -> Router<ServerState, Body> {
         .route("/recordings/:id", get(get_recording_handler))
         .route("/recordings/:id", delete(delete_recording_handler))
         .route("/recordings/:id/audio", get(get_recording_audio_handler))
+        .route("/recordings/:id/submit", post(submit_recording_handler))
         .route("/recordings/:id/feedback", post(create_feedback_handler))
         .route("/recordings/:id/feedback", get(get_feedbacks_handler))
         .route("/leaderboard", get(leaderboard_handler))
