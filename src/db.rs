@@ -21,6 +21,7 @@ pub struct NewRecording {
     pub speaker_name: Option<String>,
     pub audio_path: String,
     pub question_id: Option<String>,
+    pub submitted: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -173,6 +174,14 @@ impl Database {
             conn.execute_batch("ALTER TABLE recordings ADD COLUMN ielts_band REAL;")?;
         }
 
+        // Migrate: add submitted column if missing (default 1 = submitted, so existing records are visible)
+        let has_submitted: bool = conn
+            .prepare("SELECT submitted FROM recordings LIMIT 0")
+            .is_ok();
+        if !has_submitted {
+            conn.execute_batch("ALTER TABLE recordings ADD COLUMN submitted INTEGER NOT NULL DEFAULT 1;")?;
+        }
+
         // Create questions table
         conn.execute_batch(
             "CREATE TABLE IF NOT EXISTS questions (
@@ -228,8 +237,8 @@ impl Database {
         let id = uuid::Uuid::new_v4().to_string();
         let conn = self.conn.lock().unwrap();
         conn.execute(
-            "INSERT INTO recordings (id, user_id, text, score, words_json, fluency_json, grammar_json, ielts_band, example_text, speaker_name, audio_path, question_id)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
+            "INSERT INTO recordings (id, user_id, text, score, words_json, fluency_json, grammar_json, ielts_band, example_text, speaker_name, audio_path, question_id, submitted)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)",
             params![
                 id,
                 recording.user_id,
@@ -243,9 +252,19 @@ impl Database {
                 recording.speaker_name,
                 recording.audio_path,
                 recording.question_id,
+                recording.submitted as i32,
             ],
         )?;
         Ok(id)
+    }
+
+    pub fn submit_recording(&self, id: &str, user_id: &str) -> Result<bool> {
+        let conn = self.conn.lock().unwrap();
+        let affected = conn.execute(
+            "UPDATE recordings SET submitted = 1 WHERE id = ?1 AND user_id = ?2 AND submitted = 0",
+            params![id, user_id],
+        )?;
+        Ok(affected > 0)
     }
 
     pub fn get_recording(&self, id: &str) -> Result<Option<Recording>> {
@@ -361,7 +380,7 @@ impl Database {
         let mut stmt = conn.prepare(
             "SELECT id, speaker_name, score, fluency_json, created_at
              FROM recordings
-             WHERE question_id = ?1
+             WHERE question_id = ?1 AND submitted = 1
              ORDER BY score DESC",
         )?;
         let rows = stmt.query_map(params![question_id], |row| {
@@ -386,7 +405,7 @@ impl Database {
         let conn = self.conn.lock().unwrap();
         let mut stmt = conn.prepare(
             "SELECT q.id, q.text, q.time_limit_secs, q.created_at,
-                    (SELECT COUNT(*) FROM recordings r WHERE r.question_id = q.id) as submission_count
+                    (SELECT COUNT(*) FROM recordings r WHERE r.question_id = q.id AND r.submitted = 1) as submission_count
              FROM questions q
              WHERE q.creator_id = ?1
              ORDER BY q.created_at DESC",
@@ -419,7 +438,7 @@ impl Database {
         let conn = self.conn.lock().unwrap();
         let mut stmt = conn.prepare(
             "SELECT q.id, q.creator_id, q.text, q.time_limit_secs, q.created_at,
-                    (SELECT COUNT(*) FROM recordings r WHERE r.question_id = q.id) as submission_count
+                    (SELECT COUNT(*) FROM recordings r WHERE r.question_id = q.id AND r.submitted = 1) as submission_count
              FROM questions q
              ORDER BY q.created_at DESC",
         )?;
@@ -538,7 +557,7 @@ impl Database {
             "SELECT r.id, r.speaker_name, r.score, r.question_id, q.text, r.created_at
              FROM recordings r
              LEFT JOIN questions q ON r.question_id = q.id
-             WHERE r.created_at > ?1
+             WHERE r.created_at > ?1 AND r.submitted = 1
              ORDER BY r.created_at DESC
              LIMIT 50",
         )?;

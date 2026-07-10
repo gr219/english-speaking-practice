@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import api, { Question } from '../lib/api';
 import { useRecorder } from '../hooks/useRecorder';
+import { useUserId } from '../hooks/useUserId';
 import RecordButton from './RecordButton';
 import WordPills from './WordPills';
 
@@ -13,7 +14,9 @@ export default function QuestionAnswerView() {
   const [speakerName, setSpeakerName] = useState(() => localStorage.getItem('speech_speaker_name') || '');
   const [timeRemaining, setTimeRemaining] = useState(0);
   const [hasSubmitted, setHasSubmitted] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const userId = useUserId();
 
   const { isRecording, isAnalyzing, result, audioBlob, error: recorderError, startRecording, stopRecording, reset } = useRecorder();
 
@@ -76,13 +79,23 @@ export default function QuestionAnswerView() {
     }
   };
 
-  const handleSubmit = () => {
-    if (result) {
+  const handleSubmit = async () => {
+    if (!result) return;
+    setIsSubmitting(true);
+    try {
+      await api.submitRecording(result.id, userId);
       setHasSubmitted(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to submit recording');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   const handleReRecord = () => {
+    if (result) {
+      api.deleteDraftRecording(result.id, userId).catch(() => {});
+    }
     reset();
     setHasSubmitted(false);
   };
@@ -265,18 +278,26 @@ export default function QuestionAnswerView() {
                   Score: <span className="font-semibold">{result.score.toFixed(1)}%</span>
                 </div>
               </div>
+              {audioBlob && (
+                <div>
+                  <div className="text-sm text-zinc-600 dark:text-zinc-400 mb-2">Listen to your recording:</div>
+                  <audio src={URL.createObjectURL(audioBlob)} controls className="w-full" />
+                </div>
+              )}
               <div className="flex gap-2">
                 <button
                   onClick={handleReRecord}
-                  className="flex-1 px-4 py-2 text-sm bg-gray-200 dark:bg-zinc-700 text-zinc-800 dark:text-zinc-200 rounded hover:bg-gray-300 dark:hover:bg-zinc-600 transition-colors"
+                  disabled={isSubmitting}
+                  className="flex-1 px-4 py-2 text-sm bg-gray-200 dark:bg-zinc-700 text-zinc-800 dark:text-zinc-200 rounded hover:bg-gray-300 dark:hover:bg-zinc-600 transition-colors disabled:opacity-50"
                 >
                   Re-record
                 </button>
                 <button
                   onClick={handleSubmit}
-                  className="flex-1 px-4 py-2 text-sm bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
+                  disabled={isSubmitting}
+                  className="flex-1 px-4 py-2 text-sm bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors disabled:opacity-50"
                 >
-                  Submit
+                  {isSubmitting ? 'Submitting...' : 'Submit'}
                 </button>
               </div>
             </div>
