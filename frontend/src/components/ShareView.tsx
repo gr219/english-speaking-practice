@@ -46,15 +46,15 @@ export default function ShareView() {
 
   if (error) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-white">
+      <div className="min-h-screen flex items-center justify-center bg-white dark:bg-zinc-900">
         <div className="text-center">
-          <h1 className="text-lg font-semibold text-zinc-900 mb-2">Recording not found</h1>
-          <p className="text-sm text-zinc-500 mb-4">
+          <h1 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100 mb-2">Recording not found</h1>
+          <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-4">
             This recording may have been deleted or the link is invalid.
           </p>
           <Link
             to="/"
-            className="px-4 py-2 bg-zinc-900 text-white rounded-lg text-sm font-medium hover:bg-zinc-800"
+            className="px-4 py-2 bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 rounded-lg text-sm font-medium hover:bg-zinc-800 dark:hover:bg-zinc-200"
           >
             Try Speech yourself →
           </Link>
@@ -65,7 +65,7 @@ export default function ShareView() {
 
   if (!recording) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-white">
+      <div className="min-h-screen flex items-center justify-center bg-white dark:bg-zinc-900">
         <div className="text-sm text-zinc-400">Loading...</div>
       </div>
     );
@@ -78,17 +78,17 @@ export default function ShareView() {
   };
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-white dark:bg-zinc-900">
       <div className="max-w-2xl mx-auto p-8">
         {/* Header */}
         <div className="flex items-center justify-between mb-8">
           <div className="flex items-center gap-2">
             <span className="text-lg">🎙️</span>
-            <span className="text-sm font-semibold text-zinc-900">Speech</span>
+            <span className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">Speech</span>
           </div>
           <Link
             to="/"
-            className="text-xs text-zinc-500 hover:text-zinc-700"
+            className="text-xs text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300"
           >
             Try it yourself →
           </Link>
@@ -96,12 +96,12 @@ export default function ShareView() {
 
         {/* IELTS Band */}
         {recording.ielts_band != null && (
-          <div className="mb-6 p-4 bg-indigo-50 border border-indigo-200 rounded-lg flex items-center justify-between">
+          <div className="mb-6 p-4 bg-indigo-50 dark:bg-indigo-900/30 border border-indigo-200 dark:border-indigo-700 rounded-lg flex items-center justify-between">
             <div>
               <div className="text-xs uppercase text-indigo-400 tracking-wide">IELTS Speaking Band</div>
-              <div className="text-2xl font-bold text-indigo-700">{recording.ielts_band.toFixed(1)}</div>
+              <div className="text-2xl font-bold text-indigo-700 dark:text-indigo-300">{recording.ielts_band.toFixed(1)}</div>
             </div>
-            <div className="text-xs text-indigo-500 max-w-[180px] text-right">
+            <div className="text-xs text-indigo-500 dark:text-indigo-400 max-w-[180px] text-right">
               Based on pronunciation, fluency, and grammar
             </div>
           </div>
@@ -118,7 +118,7 @@ export default function ShareView() {
           </div>
           <button
             onClick={playFullAudio}
-            className="px-4 py-2 bg-gray-100 rounded-md text-sm text-zinc-700 hover:bg-gray-200 transition-colors"
+            className="px-4 py-2 bg-gray-100 dark:bg-zinc-700 rounded-md text-sm text-zinc-700 dark:text-zinc-200 hover:bg-gray-200 dark:hover:bg-zinc-600 transition-colors"
           >
             ▶ Listen
           </button>
@@ -133,7 +133,7 @@ export default function ShareView() {
         {/* Recognized text */}
         <div className="mb-4">
           <div className="text-xs uppercase text-zinc-400 tracking-wide mb-2">Recognized speech</div>
-          <p className="text-sm text-zinc-700 italic">"{recording.text}"</p>
+          <p className="text-sm text-zinc-700 dark:text-zinc-300 italic">"{recording.text}"</p>
         </div>
 
         {/* Word analysis */}
@@ -141,7 +141,7 @@ export default function ShareView() {
 
         {/* Feedback section */}
         {feedbacks.length > 0 && (
-          <div className="mt-8 pt-6 border-t border-gray-200">
+          <div className="mt-8 pt-6 border-t border-gray-200 dark:border-zinc-700">
             <div className="text-xs uppercase text-zinc-400 tracking-wide mb-3">
               💬 Feedback from teacher
             </div>
@@ -149,10 +149,10 @@ export default function ShareView() {
               {feedbacks.map((fb) => (
                 <div
                   key={fb.id}
-                  className="p-3 bg-indigo-50 border border-indigo-200 rounded-lg"
+                  className="p-3 bg-indigo-50 dark:bg-indigo-900/30 border border-indigo-200 dark:border-indigo-700 rounded-lg"
                 >
-                  <p className="text-sm text-zinc-800">{fb.feedback_text}</p>
-                  <p className="text-xs text-zinc-500 mt-1">
+                  <p className="text-sm text-zinc-800 dark:text-zinc-200">{fb.feedback_text}</p>
+                  <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">
                     {new Date(fb.created_at).toLocaleString()}
                   </p>
                 </div>
@@ -162,11 +162,11 @@ export default function ShareView() {
         )}
 
         {/* CTA */}
-        <div className="mt-8 pt-6 border-t border-gray-200 text-center">
-          <p className="text-sm text-zinc-500 mb-3">Want to practice your pronunciation?</p>
+        <div className="mt-8 pt-6 border-t border-gray-200 dark:border-zinc-700 text-center">
+          <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-3">Want to practice your pronunciation?</p>
           <Link
             to="/"
-            className="inline-block px-6 py-3 bg-zinc-900 text-white rounded-lg font-medium hover:bg-zinc-800 transition-colors"
+            className="inline-block px-6 py-3 bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 rounded-lg font-medium hover:bg-zinc-800 dark:hover:bg-zinc-200 transition-colors"
           >
             Try Speech yourself
           </Link>

@@ -18,15 +18,6 @@ export default function Layout({ children, sidebar, questionsSidebar, rightPanel
   useEffect(() => {
     if (isAdmin) setIsQuestionsOpen(true);
   }, [isAdmin]);
-  const [isDark, setIsDark] = useState(() => {
-    return localStorage.getItem('speech_dark_mode') === 'true' ||
-      (!localStorage.getItem('speech_dark_mode') && window.matchMedia('(prefers-color-scheme: dark)').matches);
-  });
-
-  useEffect(() => {
-    document.documentElement.classList.toggle('dark', isDark);
-    localStorage.setItem('speech_dark_mode', String(isDark));
-  }, [isDark]);
 
   const handleHistoryToggle = () => {
     setIsHistoryOpen(!isHistoryOpen);
@@ -65,13 +56,6 @@ export default function Layout({ children, sidebar, questionsSidebar, rightPanel
               🔐 Admin
             </button>
           )}
-          <button
-            onClick={() => setIsDark(!isDark)}
-            className="text-white/80 hover:text-white text-sm"
-            title={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
-          >
-            {isDark ? '☀️' : '🌙'}
-          </button>
         </div>
       </div>
 
@@ -143,12 +127,6 @@ export default function Layout({ children, sidebar, questionsSidebar, rightPanel
           📝
         </button>
         <span className="text-lg opacity-50">🎙️</span>
-        <button
-          onClick={() => setIsDark(!isDark)}
-          className="text-lg opacity-50"
-        >
-          {isDark ? '☀️' : '🌙'}
-        </button>
       </div>
     </div>
   );

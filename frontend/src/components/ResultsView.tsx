@@ -121,10 +121,10 @@ export default function ResultsView({
             {improvements.map((item) => (
               <div
                 key={item.word}
-                className="bg-white border border-gray-200 rounded-lg p-3"
+                className="bg-white dark:bg-zinc-800 border border-gray-200 dark:border-zinc-600 rounded-lg p-3"
               >
-                <div className="text-sm font-semibold text-red-700">{item.word}</div>
-                <div className="text-xs text-zinc-500 mt-1">{item.pronounce}</div>
+                <div className="text-sm font-semibold text-red-700 dark:text-red-400">{item.word}</div>
+                <div className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">{item.pronounce}</div>
               </div>
             ))}
           </div>
