@@ -271,16 +271,51 @@ export default function QuestionAnswerView() {
 
           {result && !hasSubmitted && (
             <div className="space-y-4">
-              <div className="p-4 bg-gray-50 dark:bg-zinc-700 rounded-lg">
-                <div className="text-sm text-zinc-600 dark:text-zinc-400 mb-2">Preview:</div>
-                <div className="text-zinc-800 dark:text-zinc-200 mb-2">{result.text}</div>
-                <div className="text-sm text-zinc-600 dark:text-zinc-400">
-                  Score: <span className="font-semibold">{result.score.toFixed(1)}%</span>
+              <div className="grid grid-cols-3 gap-4">
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
+                    {(result.words.length > 0
+                      ? (result.words.reduce((sum, w) => sum + w.score, 0) / result.words.length * 100)
+                      : 0
+                    ).toFixed(1)}%
+                  </div>
+                  <div className="text-sm text-zinc-600 dark:text-zinc-400">Pronunciation</div>
                 </div>
+                {result.fluency && (
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-green-600 dark:text-green-400">
+                      {result.fluency.score.toFixed(1)}%
+                    </div>
+                    <div className="text-sm text-zinc-600 dark:text-zinc-400">Fluency</div>
+                  </div>
+                )}
+                {result.grammar && (
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-amber-600 dark:text-amber-400">
+                      {result.grammar.score.toFixed(1)}%
+                    </div>
+                    <div className="text-sm text-zinc-600 dark:text-zinc-400">Grammar</div>
+                  </div>
+                )}
               </div>
+              {result.ielts_band != null && (
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-purple-600 dark:text-purple-400">
+                    {result.ielts_band.toFixed(1)}
+                  </div>
+                  <div className="text-sm text-zinc-600 dark:text-zinc-400">IELTS Band</div>
+                </div>
+              )}
+
+              <div className="border-t border-gray-200 dark:border-zinc-600 pt-4">
+                <div className="text-xs uppercase text-zinc-400 tracking-wide mb-2">Recognized speech</div>
+                <div className="text-sm text-zinc-800 dark:text-zinc-200 italic mb-3">"{result.text}"</div>
+                <WordPills words={result.words} audioBlob={audioBlob} audioUrl={api.getAudioUrl(result.id)} />
+              </div>
+
               {audioBlob && (
-                <div>
-                  <div className="text-sm text-zinc-600 dark:text-zinc-400 mb-2">Listen to your recording:</div>
+                <div className="border-t border-gray-200 dark:border-zinc-600 pt-4">
+                  <div className="text-sm text-zinc-600 dark:text-zinc-400 mb-2">Your recording:</div>
                   <audio src={URL.createObjectURL(audioBlob)} controls className="w-full" />
                 </div>
               )}
