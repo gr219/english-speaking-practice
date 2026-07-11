@@ -48,29 +48,29 @@ export default function FluencyDisplay({ fluency }: FluencyDisplayProps) {
       </div>
 
       {/* Metrics */}
-      <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 space-y-2">
+      <div className="bg-gray-50 dark:bg-zinc-800 border border-gray-200 dark:border-zinc-600 rounded-lg p-4 space-y-2">
         <div className="flex items-center justify-between text-sm">
-          <span className="text-zinc-600">Speech rate</span>
+          <span className="text-zinc-600 dark:text-zinc-300">Speech rate</span>
           <span className={`font-medium ${wpmInfo.color}`}>
             {Math.round(fluency.wpm)} WPM — {wpmInfo.text}
           </span>
         </div>
         <div className="flex items-center justify-between text-sm">
-          <span className="text-zinc-600">Hesitations</span>
+          <span className="text-zinc-600 dark:text-zinc-300">Hesitations</span>
           <span className={`font-medium ${fluency.pause_count === 0 ? 'text-green-600' : 'text-amber-500'}`}>
             {fluency.pause_count === 0 ? 'None ✓' : `${fluency.pause_count} detected`}
           </span>
         </div>
         <div className="flex items-center justify-between text-sm">
-          <span className="text-zinc-600">Rhythm</span>
+          <span className="text-zinc-600 dark:text-zinc-300">Rhythm</span>
           <span className={`font-medium ${getScoreTextColor(fluency.rhythm_score)}`}>
             {fluency.rhythm_score.toFixed(0)}%
           </span>
         </div>
         {/* Coaching tip */}
         {fluency.score < 90 && (
-          <div className="pt-2 border-t border-gray-200 mt-2">
-            <p className="text-xs text-zinc-500">
+          <div className="pt-2 border-t border-gray-200 dark:border-zinc-600 mt-2">
+            <p className="text-xs text-zinc-500 dark:text-zinc-400">
               💡 <span className="font-medium">Tip:</span> {tip}
             </p>
           </div>
