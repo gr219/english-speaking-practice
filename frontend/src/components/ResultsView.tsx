@@ -66,7 +66,7 @@ export default function ResultsView({
             <div className="text-2xl font-bold text-indigo-700 dark:text-indigo-300">{result.ielts_band.toFixed(1)}</div>
           </div>
           <div className="text-xs text-indigo-500 dark:text-indigo-400 max-w-[180px] text-right">
-            Based on pronunciation, fluency, and grammar
+            Based on pronunciation, fluency, and accuracy
           </div>
         </div>
       )}
