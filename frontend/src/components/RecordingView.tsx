@@ -3,6 +3,7 @@ import RecordButton from './RecordButton';
 import { useRecorder } from '../hooks/useRecorder';
 import api, { AnalyzeResult, ExampleSentence } from '../lib/api';
 import CreateQuestionModal from './CreateQuestionModal';
+import MicPermissionAlert from './MicPermissionAlert';
 
 interface RecordingViewProps {
   onResult: (result: AnalyzeResult, audioBlob?: Blob) => void;
@@ -165,11 +166,13 @@ export default function RecordingView({ onResult, prefillText }: RecordingViewPr
               )}
             </div>
 
-            {error && (
+            {error && error === 'microphone_permission_denied' ? (
+              <MicPermissionAlert />
+            ) : error ? (
               <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
                 {error}
               </div>
-            )}
+            ) : null}
           </>
         )}
 

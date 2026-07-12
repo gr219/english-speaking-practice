@@ -72,8 +72,12 @@ export function useRecorder(): UseRecorderReturn {
 
       recorder.startRecording();
       setIsRecording(true);
-    } catch {
-      setError('Could not access microphone');
+    } catch (err) {
+      if (err instanceof DOMException && (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError')) {
+        setError('microphone_permission_denied');
+      } else {
+        setError('Could not access microphone');
+      }
     }
   }, [userId]);
 

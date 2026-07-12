@@ -5,6 +5,7 @@ import { useRecorder } from '../hooks/useRecorder';
 import { useUserId } from '../hooks/useUserId';
 import RecordButton from './RecordButton';
 import WordPills from './WordPills';
+import MicPermissionAlert from './MicPermissionAlert';
 
 export default function QuestionAnswerView() {
   const { id } = useParams<{ id: string }>();
@@ -263,11 +264,13 @@ export default function QuestionAnswerView() {
             )}
           </div>
 
-          {(recorderError || error) && (
+          {(recorderError || error) && (recorderError === 'microphone_permission_denied' ? (
+            <MicPermissionAlert />
+          ) : (
             <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded text-sm text-red-700 dark:text-red-300">
               {recorderError || error}
             </div>
-          )}
+          ))}
 
           {result && !hasSubmitted && (
             <div className="space-y-4">
