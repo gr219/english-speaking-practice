@@ -412,6 +412,7 @@ async fn leaderboard_handler(
 pub struct CreateQuestionRequest {
     pub text: String,
     pub time_limit_secs: i32,
+    pub class_label: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -428,7 +429,7 @@ async fn create_question_handler(
     info!(creator_id = %creator_id, text_len = req.text.len(), time_limit = req.time_limit_secs, "Creating question");
     let id = state
         .db
-        .insert_question(&creator_id, &req.text, req.time_limit_secs)
+        .insert_question(&creator_id, &req.text, req.time_limit_secs, req.class_label.as_deref())
         .map_err(|e| {
             error!(creator_id = %creator_id, error = %e, "Failed to insert question");
             StatusCode::INTERNAL_SERVER_ERROR
@@ -639,6 +640,7 @@ async fn admin_delete_recording_handler(
 pub struct BatchQuestionItem {
     pub text: String,
     pub time_limit_secs: i32,
+    pub class_label: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -652,7 +654,7 @@ async fn create_questions_batch_handler(
     Json(req): Json<Vec<BatchQuestionItem>>,
 ) -> Result<impl IntoResponse, StatusCode> {
     let creator_id = extract_user_id(&headers).unwrap_or_default();
-    let questions: Vec<(String, i32)> = req.into_iter().map(|q| (q.text, q.time_limit_secs)).collect();
+    let questions: Vec<(String, i32, Option<String>)> = req.into_iter().map(|q| (q.text, q.time_limit_secs, q.class_label)).collect();
     let ids = state
         .db
         .insert_questions_batch(&creator_id, &questions)
@@ -720,6 +722,45 @@ async fn get_feedbacks_handler(
     Ok(Json(feedbacks))
 }
 
+// --- Homework list endpoints ---
+
+#[derive(Deserialize)]
+pub struct ListHomeworkQuery {
+    pub creator_id: String,
+    pub class_label: Option<String>,
+}
+
+async fn list_homework_handler(
+    state: State<ServerState>,
+    Query(query): Query<ListHomeworkQuery>,
+) -> Result<impl IntoResponse, StatusCode> {
+    let questions = state
+        .db
+        .list_homework(&query.creator_id, query.class_label.as_deref())
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    Ok(Json(questions))
+}
+
+#[derive(Deserialize)]
+pub struct AdminListHomeworkQuery {
+    pub class_label: Option<String>,
+}
+
+async fn admin_list_homework_handler(
+    state: State<ServerState>,
+    headers: HeaderMap,
+    Query(query): Query<AdminListHomeworkQuery>,
+) -> Result<impl IntoResponse, StatusCode> {
+    if !is_admin(&state, &headers) {
+        return Err(StatusCode::UNAUTHORIZED);
+    }
+    let questions = state
+        .db
+        .list_all_homework(query.class_label.as_deref())
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    Ok(Json(questions))
+}
+
 pub fn router() -> Router<ServerState, Body> {
     Router::new()
         .route("/pronounce", post(pronounce_lookup_handler))
@@ -739,6 +780,8 @@ pub fn router() -> Router<ServerState, Body> {
         .route("/questions/:id", get(get_question_handler))
         .route("/questions/:id", delete(delete_question_by_creator_handler))
         .route("/questions/:id/submissions", get(get_question_submissions_handler))
+        .route("/homework", get(list_homework_handler))
+        .route("/admin/homework", get(admin_list_homework_handler))
         .route("/admin/verify", post(admin_verify_handler))
         .route("/admin/submissions/recent", get(admin_recent_submissions_handler))
         .route("/admin/questions", get(admin_list_questions_handler))
