@@ -83,6 +83,7 @@ export interface SubmissionEntry {
   score: number;
   fluency_score: number | null;
   created_at: string;
+  feedback_text: string | null;
 }
 
 const api = {
@@ -257,7 +258,7 @@ const api = {
   },
 
   // Batch question creation
-  async createQuestionsBatch(questions: { text: string; time_limit_secs: number }[], userId: string): Promise<{ ids: string[] }> {
+  async createQuestionsBatch(questions: { text: string; time_limit_secs: number; class_label?: string | null }[], userId: string): Promise<{ ids: string[] }> {
     const res = await fetch('/api/questions/batch', {
       method: 'POST',
       headers: {
@@ -312,6 +313,24 @@ const api = {
       throw new Error(body?.error || 'Failed to delete draft recording');
     }
   },
+
+  async listHomework(userId: string, classLabel?: string): Promise<QuestionSummary[]> {
+    const params = new URLSearchParams({ creator_id: userId });
+    if (classLabel) params.set('class_label', classLabel);
+    const res = await fetch(`/api/homework?${params}`);
+    if (!res.ok) throw new Error('Failed to list homework');
+    return res.json();
+  },
+
+  async adminListHomework(adminToken: string, classLabel?: string): Promise<QuestionWithCreator[]> {
+    const params = new URLSearchParams();
+    if (classLabel) params.set('class_label', classLabel);
+    const res = await fetch(`/api/admin/homework?${params}`, {
+      headers: { 'X-Admin-Token': adminToken },
+    });
+    if (!res.ok) throw new Error('Failed to list homework');
+    return res.json();
+  },
 };
 
 export interface LeaderboardEntry {
@@ -328,6 +347,7 @@ export interface QuestionSummary {
   time_limit_secs: number;
   created_at: string;
   submission_count: number;
+  class_label: string | null;
 }
 
 export interface QuestionWithCreator {
@@ -337,6 +357,7 @@ export interface QuestionWithCreator {
   time_limit_secs: number;
   created_at: string;
   submission_count: number;
+  class_label: string | null;
 }
 
 export interface Feedback {
