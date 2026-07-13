@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import IconRail from './IconRail';
 
 interface LayoutProps {
@@ -42,9 +43,9 @@ export default function Layout({ children, sidebar, questionsSidebar, homeworkSi
     <div className="flex flex-col h-screen bg-white dark:bg-zinc-900">
       {/* Top banner */}
       <div className="w-full bg-indigo-600 dark:bg-indigo-700 px-4 py-2 flex items-center justify-between shrink-0">
-        <div className="text-sm font-bold text-white tracking-wide">
+        <Link to="/" className="inline-flex items-center gap-1 text-sm font-bold text-white tracking-wide hover:opacity-90 transition-opacity">
           🏠 COZY LAN ENGLISH
-        </div>
+        </Link>
         <div className="flex items-center gap-2">
           {isAdmin ? (
             <button

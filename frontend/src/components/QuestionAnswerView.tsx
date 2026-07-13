@@ -5,6 +5,9 @@ import { useRecorder } from '../hooks/useRecorder';
 import { useUserId } from '../hooks/useUserId';
 import RecordButton from './RecordButton';
 import WordPills from './WordPills';
+import FluencyDisplay from './FluencyDisplay';
+import GrammarDisplay from './GrammarDisplay';
+import Banner from './Banner';
 import MicPermissionAlert from './MicPermissionAlert';
 
 export default function QuestionAnswerView() {
@@ -109,18 +112,24 @@ export default function QuestionAnswerView() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-screen bg-white dark:bg-zinc-900">
-        <p className="text-zinc-500 dark:text-zinc-400">Loading question...</p>
+      <div className="min-h-screen bg-white dark:bg-zinc-900">
+        <Banner />
+        <div className="flex items-center justify-center h-[calc(100vh-40px)]">
+          <p className="text-zinc-500 dark:text-zinc-400">Loading question...</p>
+        </div>
       </div>
     );
   }
 
   if (error || !question) {
     return (
-      <div className="flex items-center justify-center h-screen bg-white dark:bg-zinc-900">
-        <div className="text-center">
-          <p className="text-red-600 dark:text-red-400 mb-4">{error || 'Question not found'}</p>
-          <a href="/" className="text-blue-500 hover:underline">Go home</a>
+      <div className="min-h-screen bg-white dark:bg-zinc-900">
+        <Banner />
+        <div className="flex items-center justify-center h-[calc(100vh-40px)]">
+          <div className="text-center">
+            <p className="text-red-600 dark:text-red-400 mb-4">{error || 'Question not found'}</p>
+            <a href="/" className="text-blue-500 hover:underline">Go home</a>
+          </div>
         </div>
       </div>
     );
@@ -128,7 +137,9 @@ export default function QuestionAnswerView() {
 
   if (hasSubmitted && result) {
     return (
-      <div className="min-h-screen bg-white dark:bg-zinc-900 p-8">
+      <div className="min-h-screen bg-white dark:bg-zinc-900">
+        <Banner />
+        <div className="p-8">
         <div className="max-w-2xl mx-auto">
           <div className="bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 rounded-lg p-6 mb-6">
             <div className="text-sm text-zinc-600 dark:text-zinc-400 mb-2">Question:</div>
@@ -140,6 +151,20 @@ export default function QuestionAnswerView() {
               ✅ Submitted!
             </h2>
             <div className="space-y-4">
+              {/* IELTS Band */}
+              {result.ielts_band != null && (
+                <div className="p-4 bg-indigo-50 dark:bg-indigo-900/30 border border-indigo-200 dark:border-indigo-800 rounded-lg flex items-center justify-between">
+                  <div>
+                    <div className="text-xs uppercase text-indigo-400 tracking-wide">IELTS Speaking Band</div>
+                    <div className="text-2xl font-bold text-indigo-700 dark:text-indigo-300">{result.ielts_band.toFixed(1)}</div>
+                  </div>
+                  <div className="text-xs text-indigo-500 dark:text-indigo-400 max-w-[180px] text-right">
+                    Based on pronunciation, fluency, and accuracy
+                  </div>
+                </div>
+              )}
+
+              {/* Score summary */}
               <div className="grid grid-cols-3 gap-4">
                 <div className="text-center">
                   <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
@@ -166,15 +191,13 @@ export default function QuestionAnswerView() {
                     <div className="text-sm text-zinc-600 dark:text-zinc-400">Accuracy</div>
                   </div>
                 )}
-                {result.ielts_band && (
-                  <div className="text-center">
-                    <div className="text-2xl font-bold text-purple-600 dark:text-purple-400">
-                      {result.ielts_band.toFixed(1)}
-                    </div>
-                    <div className="text-sm text-zinc-600 dark:text-zinc-400">IELTS Band</div>
-                  </div>
-                )}
               </div>
+
+              {/* Detailed fluency analysis */}
+              <FluencyDisplay fluency={result.fluency} />
+
+              {/* Detailed grammar/accuracy analysis */}
+              <GrammarDisplay grammar={result.grammar} />
 
               <div className="border-t border-gray-200 dark:border-zinc-600 pt-4">
                 <div className="text-xs uppercase text-zinc-400 tracking-wide mb-2">Recognized speech</div>
@@ -200,12 +223,15 @@ export default function QuestionAnswerView() {
             </div>
           </div>
         </div>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-white dark:bg-zinc-900 p-8">
+    <div className="min-h-screen bg-white dark:bg-zinc-900">
+      <Banner />
+      <div className="p-8">
       <div className="max-w-2xl mx-auto">
         <div className="bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 rounded-lg p-6 mb-6">
           <div className="text-sm text-zinc-600 dark:text-zinc-400 mb-2">Question:</div>
@@ -261,6 +287,20 @@ export default function QuestionAnswerView() {
 
           {result && !hasSubmitted && (
             <div className="space-y-4">
+              {/* IELTS Band */}
+              {result.ielts_band != null && (
+                <div className="p-4 bg-indigo-50 dark:bg-indigo-900/30 border border-indigo-200 dark:border-indigo-800 rounded-lg flex items-center justify-between">
+                  <div>
+                    <div className="text-xs uppercase text-indigo-400 tracking-wide">IELTS Speaking Band</div>
+                    <div className="text-2xl font-bold text-indigo-700 dark:text-indigo-300">{result.ielts_band.toFixed(1)}</div>
+                  </div>
+                  <div className="text-xs text-indigo-500 dark:text-indigo-400 max-w-[180px] text-right">
+                    Based on pronunciation, fluency, and accuracy
+                  </div>
+                </div>
+              )}
+
+              {/* Score summary */}
               <div className="grid grid-cols-3 gap-4">
                 <div className="text-center">
                   <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
@@ -288,14 +328,12 @@ export default function QuestionAnswerView() {
                   </div>
                 )}
               </div>
-              {result.ielts_band != null && (
-                <div className="text-center">
-                  <div className="text-2xl font-bold text-purple-600 dark:text-purple-400">
-                    {result.ielts_band.toFixed(1)}
-                  </div>
-                  <div className="text-sm text-zinc-600 dark:text-zinc-400">IELTS Band</div>
-                </div>
-              )}
+
+              {/* Detailed fluency analysis */}
+              <FluencyDisplay fluency={result.fluency} />
+
+              {/* Detailed grammar/accuracy analysis */}
+              <GrammarDisplay grammar={result.grammar} />
 
               <div className="border-t border-gray-200 dark:border-zinc-600 pt-4">
                 <div className="text-xs uppercase text-zinc-400 tracking-wide mb-2">Recognized speech</div>
@@ -328,6 +366,7 @@ export default function QuestionAnswerView() {
             </div>
           )}
         </div>
+      </div>
       </div>
     </div>
   );

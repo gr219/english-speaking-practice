@@ -4,6 +4,7 @@ import api, { Word, Fluency, Grammar, Feedback } from '../lib/api';
 import WordPills from './WordPills';
 import FluencyDisplay from './FluencyDisplay';
 import GrammarDisplay from './GrammarDisplay';
+import Banner from './Banner';
 import { getScoreTextColor } from '../lib/utils';
 
 interface SharedRecording {
@@ -79,6 +80,7 @@ export default function ShareView() {
 
   return (
     <div className="min-h-screen bg-white dark:bg-zinc-900">
+      <Banner />
       <div className="max-w-2xl mx-auto p-8">
         {/* Header */}
         <div className="flex items-center justify-between mb-8">

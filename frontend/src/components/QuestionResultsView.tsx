@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import api, { Question, SubmissionEntry } from '../lib/api';
 import { useUserId } from '../hooks/useUserId';
 import { useAdmin } from '../hooks/useAdmin';
+import Banner from './Banner';
 
 export default function QuestionResultsView() {
   const { id } = useParams<{ id: string }>();
@@ -132,25 +133,33 @@ export default function QuestionResultsView() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-screen bg-white dark:bg-zinc-900">
-        <p className="text-zinc-500 dark:text-zinc-400">Loading submissions...</p>
+      <div className="min-h-screen bg-white dark:bg-zinc-900">
+        <Banner />
+        <div className="flex items-center justify-center h-[calc(100vh-40px)]">
+          <p className="text-zinc-500 dark:text-zinc-400">Loading submissions...</p>
+        </div>
       </div>
     );
   }
 
   if (error || !question) {
     return (
-      <div className="flex items-center justify-center h-screen bg-white dark:bg-zinc-900">
-        <div className="text-center">
-          <p className="text-red-600 dark:text-red-400 mb-4">{error || 'Question not found'}</p>
-          <a href="/" className="text-blue-500 hover:underline">Go home</a>
+      <div className="min-h-screen bg-white dark:bg-zinc-900">
+        <Banner />
+        <div className="flex items-center justify-center h-[calc(100vh-40px)]">
+          <div className="text-center">
+            <p className="text-red-600 dark:text-red-400 mb-4">{error || 'Question not found'}</p>
+            <a href="/" className="text-blue-500 hover:underline">Go home</a>
+          </div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-white dark:bg-zinc-900 p-8">
+    <div className="min-h-screen bg-white dark:bg-zinc-900">
+      <Banner />
+      <div className="p-8">
       <div className="max-w-4xl mx-auto">
         <div className="bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 rounded-lg p-6 mb-6">
           <h1 className="text-2xl font-semibold text-zinc-900 dark:text-zinc-100 mb-2">
@@ -343,6 +352,7 @@ export default function QuestionResultsView() {
             ← Answer this question
           </a>
         </div>
+      </div>
       </div>
     </div>
   );

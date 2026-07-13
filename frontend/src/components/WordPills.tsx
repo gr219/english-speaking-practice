@@ -60,6 +60,12 @@ export default function WordPills({ words, audioBlob, audioUrl }: WordPillsProps
         ))}
       </div>
       <p className="text-xs text-zinc-400 mt-2">Click any word to hear how you pronounced it</p>
+      <div className="flex flex-wrap gap-3 mt-2 text-xs text-zinc-500 dark:text-zinc-400">
+        <span className="flex items-center gap-1"><span className="inline-block w-2.5 h-2.5 rounded-full bg-green-500"></span> Excellent (&gt;85%)</span>
+        <span className="flex items-center gap-1"><span className="inline-block w-2.5 h-2.5 rounded-full bg-yellow-500"></span> Good (75–85%)</span>
+        <span className="flex items-center gap-1"><span className="inline-block w-2.5 h-2.5 rounded-full bg-orange-500"></span> Needs work (50–75%)</span>
+        <span className="flex items-center gap-1"><span className="inline-block w-2.5 h-2.5 rounded-full bg-red-500"></span> Poor (&lt;50%)</span>
+      </div>
     </div>
   );
 }
