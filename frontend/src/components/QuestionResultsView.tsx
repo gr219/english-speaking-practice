@@ -221,6 +221,9 @@ export default function QuestionResultsView() {
                   <th className="px-4 py-3 text-left text-xs font-semibold text-zinc-600 dark:text-zinc-300 uppercase tracking-wider">
                     Actions
                   </th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-zinc-600 dark:text-zinc-300 uppercase tracking-wider">
+                    Feedback
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200 dark:divide-zinc-600">
@@ -311,6 +314,21 @@ export default function QuestionResultsView() {
                             </div>
                           )}
                         </div>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-sm align-top">
+                      {sub.feedback_text ? (
+                        <div className="flex items-start gap-1">
+                          <span className="text-green-500 shrink-0">✅</span>
+                          <span
+                            className="text-xs text-zinc-700 dark:text-zinc-300 line-clamp-2"
+                            title={sub.feedback_text}
+                          >
+                            {sub.feedback_text}
+                          </span>
+                        </div>
+                      ) : (
+                        <span className="text-zinc-400">—</span>
                       )}
                     </td>
                   </tr>
