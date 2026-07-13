@@ -3,9 +3,12 @@ interface IconRailProps {
   isHistoryOpen: boolean;
   onQuestionsToggle: () => void;
   isQuestionsOpen: boolean;
+  onHomeworkToggle?: () => void;
+  isHomeworkOpen?: boolean;
+  showHomework?: boolean;
 }
 
-export default function IconRail({ onHistoryToggle, isHistoryOpen, onQuestionsToggle, isQuestionsOpen }: IconRailProps) {
+export default function IconRail({ onHistoryToggle, isHistoryOpen, onQuestionsToggle, isQuestionsOpen, onHomeworkToggle, isHomeworkOpen, showHomework }: IconRailProps) {
   return (
     <div className="w-12 bg-zinc-900 flex flex-col items-center py-3 gap-3 shrink-0">
       <button
@@ -32,6 +35,17 @@ export default function IconRail({ onHistoryToggle, isHistoryOpen, onQuestionsTo
       >
         📝
       </button>
+      {showHomework && onHomeworkToggle && (
+        <button
+          className={`w-8 h-8 rounded-md flex items-center justify-center text-sm transition-colors ${
+            isHomeworkOpen ? 'bg-indigo-500 text-white' : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'
+          }`}
+          title="Homework"
+          onClick={onHomeworkToggle}
+        >
+          📚
+        </button>
+      )}
     </div>
   );
 }

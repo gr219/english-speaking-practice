@@ -5,15 +5,17 @@ interface LayoutProps {
   children: React.ReactNode;
   sidebar?: React.ReactNode;
   questionsSidebar?: React.ReactNode;
+  homeworkSidebar?: React.ReactNode;
   rightPanel?: React.ReactNode;
   isAdmin?: boolean;
   onAdminLogin?: () => void;
   onAdminPanel?: () => void;
 }
 
-export default function Layout({ children, sidebar, questionsSidebar, rightPanel, isAdmin = false, onAdminLogin, onAdminPanel }: LayoutProps) {
+export default function Layout({ children, sidebar, questionsSidebar, homeworkSidebar, rightPanel, isAdmin = false, onAdminLogin, onAdminPanel }: LayoutProps) {
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [isQuestionsOpen, setIsQuestionsOpen] = useState(isAdmin);
+  const [isHomeworkOpen, setIsHomeworkOpen] = useState(false);
 
   useEffect(() => {
     if (isAdmin) setIsQuestionsOpen(true);
@@ -21,15 +23,20 @@ export default function Layout({ children, sidebar, questionsSidebar, rightPanel
 
   const handleHistoryToggle = () => {
     setIsHistoryOpen(!isHistoryOpen);
-    if (!isHistoryOpen) setIsQuestionsOpen(false);
+    if (!isHistoryOpen) { setIsQuestionsOpen(false); setIsHomeworkOpen(false); }
   };
 
   const handleQuestionsToggle = () => {
     setIsQuestionsOpen(!isQuestionsOpen);
-    if (!isQuestionsOpen) setIsHistoryOpen(false);
+    if (!isQuestionsOpen) { setIsHistoryOpen(false); setIsHomeworkOpen(false); }
   };
 
-  const isSidebarOpen = isHistoryOpen || isQuestionsOpen;
+  const handleHomeworkToggle = () => {
+    setIsHomeworkOpen(!isHomeworkOpen);
+    if (!isHomeworkOpen) { setIsHistoryOpen(false); setIsQuestionsOpen(false); }
+  };
+
+  const isSidebarOpen = isHistoryOpen || isQuestionsOpen || isHomeworkOpen;
 
   return (
     <div className="flex flex-col h-screen bg-white dark:bg-zinc-900">
@@ -68,6 +75,9 @@ export default function Layout({ children, sidebar, questionsSidebar, rightPanel
             isHistoryOpen={isHistoryOpen}
             onQuestionsToggle={handleQuestionsToggle}
             isQuestionsOpen={isQuestionsOpen}
+            onHomeworkToggle={handleHomeworkToggle}
+            isHomeworkOpen={isHomeworkOpen}
+            showHomework={isAdmin}
           />
         </div>
 
@@ -80,6 +90,7 @@ export default function Layout({ children, sidebar, questionsSidebar, rightPanel
           <div className="w-64 h-full overflow-y-auto">
             {isHistoryOpen && sidebar}
             {isQuestionsOpen && questionsSidebar}
+            {isHomeworkOpen && homeworkSidebar}
           </div>
         </div>
 
@@ -126,6 +137,14 @@ export default function Layout({ children, sidebar, questionsSidebar, rightPanel
         >
           📝
         </button>
+        {isAdmin && (
+          <button
+            onClick={handleHomeworkToggle}
+            className={`text-lg ${isHomeworkOpen ? 'opacity-100' : 'opacity-50'}`}
+          >
+            📚
+          </button>
+        )}
         <span className="text-lg opacity-50">🎙️</span>
       </div>
     </div>

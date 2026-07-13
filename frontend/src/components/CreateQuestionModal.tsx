@@ -4,14 +4,16 @@ import { useUserId } from '../hooks/useUserId';
 
 interface CreateQuestionModalProps {
   onClose: () => void;
+  requireClass?: boolean;
 }
 
 interface QuestionInput {
   text: string;
   timeLimitSecs: number;
+  classLabel: string;
 }
 
-export default function CreateQuestionModal({ onClose }: CreateQuestionModalProps) {
+export default function CreateQuestionModal({ onClose, requireClass }: CreateQuestionModalProps) {
   const userId = useUserId();
   const [numQuestions, setNumQuestions] = useState<number | ''>('');
   const [questions, setQuestions] = useState<QuestionInput[]>([]);
@@ -21,6 +23,7 @@ export default function CreateQuestionModal({ onClose }: CreateQuestionModalProp
   const [includeQuestion, setIncludeQuestion] = useState(true);
   const [includeStudentLink, setIncludeStudentLink] = useState(true);
   const [includeResultsLink, setIncludeResultsLink] = useState(true);
+  const [classLabel, setClassLabel] = useState('');
 
   const handleNumChange = (value: string) => {
     const num = parseInt(value);
@@ -32,7 +35,7 @@ export default function CreateQuestionModal({ onClose }: CreateQuestionModalProp
     if (num < 1 || num > 20) return;
     setNumQuestions(num);
     setQuestions(
-      Array.from({ length: num }, (_, i) => questions[i] || { text: '', timeLimitSecs: 120 })
+      Array.from({ length: num }, (_, i) => questions[i] || { text: '', timeLimitSecs: 120, classLabel: classLabel })
     );
   };
 
@@ -55,12 +58,17 @@ export default function CreateQuestionModal({ onClose }: CreateQuestionModalProp
         return;
       }
     }
+    if (requireClass && !classLabel.trim()) {
+      setError('Please enter a class name');
+      return;
+    }
     setIsCreating(true);
     setError(null);
     try {
       const payload = validQuestions.map((q) => ({
         text: q.text.trim(),
         time_limit_secs: q.timeLimitSecs,
+        class_label: requireClass ? (classLabel.trim() || null) : null,
       }));
       const result = await api.createQuestionsBatch(payload, userId);
       setCreatedIds(result.ids);
@@ -236,6 +244,21 @@ export default function CreateQuestionModal({ onClose }: CreateQuestionModalProp
             className="w-full px-3 py-2 border border-gray-200 dark:border-zinc-600 rounded text-sm text-zinc-800 dark:text-zinc-200 bg-white dark:bg-zinc-700 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-blue-300 dark:focus:ring-blue-600 focus:border-transparent"
           />
         </div>
+
+        {requireClass && (
+          <div>
+            <label className="text-sm text-zinc-600 dark:text-zinc-400 block mb-1">
+              Class:
+            </label>
+            <input
+              type="text"
+              value={classLabel}
+              onChange={(e) => setClassLabel(e.target.value)}
+              placeholder="e.g., 10A, 11B"
+              className="w-full px-3 py-2 border border-gray-200 dark:border-zinc-600 rounded text-sm text-zinc-800 dark:text-zinc-200 bg-white dark:bg-zinc-700 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-blue-300 dark:focus:ring-blue-600 focus:border-transparent"
+            />
+          </div>
+        )}
 
         {questions.length > 0 && (
           <div className="space-y-4 max-h-96 overflow-y-auto pr-1">

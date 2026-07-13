@@ -11,6 +11,8 @@ import MyQuestions from './components/MyQuestions';
 import Leaderboard from './components/Leaderboard';
 import AdminLoginModal from './components/AdminLoginModal';
 import AdminPanel from './components/AdminPanel';
+import HomeworkPanel from './components/HomeworkPanel';
+import CreateQuestionModal from './components/CreateQuestionModal';
 import { AnalyzeResult, Word } from './lib/api';
 import api from './lib/api';
 import { useUserId } from './hooks/useUserId';
@@ -27,6 +29,7 @@ function MainPage() {
   const [activeRecordingId, setActiveRecordingId] = useState<string | null>(null);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [prefillText, setPrefillText] = useState<string>('');
+  const [showCreateHomework, setShowCreateHomework] = useState(false);
 
   const handleResult = useCallback((result: AnalyzeResult, blob?: Blob) => {
     setCurrentResult(result);
@@ -109,12 +112,24 @@ function MainPage() {
 
   const questionsSidebar = <MyQuestions userId={userId} refreshTrigger={refreshTrigger} isAdmin={isAdmin} adminToken={getAdminToken()} onRefresh={() => setRefreshTrigger((n) => n + 1)} />;
 
+  const homeworkSidebar = isAdmin ? (
+    <HomeworkPanel
+      userId={userId}
+      refreshTrigger={refreshTrigger}
+      isAdmin={isAdmin}
+      adminToken={getAdminToken()}
+      onRefresh={() => setRefreshTrigger((n) => n + 1)}
+      onCreateHomework={() => setShowCreateHomework(true)}
+    />
+  ) : null;
+
   if (currentResult) {
     return (
       <>
         <Layout
           sidebar={sidebar}
           questionsSidebar={questionsSidebar}
+          homeworkSidebar={homeworkSidebar}
           rightPanel={leaderboard}
           isAdmin={isAdmin}
           onAdminLogin={() => setShowAdminLogin(true)}
@@ -131,6 +146,16 @@ function MainPage() {
         {showAdminLogin && (
           <AdminLoginModal onLogin={handleAdminLogin} onClose={() => setShowAdminLogin(false)} />
         )}
+        {showCreateHomework && (
+          <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+            <div className="max-w-lg w-full max-h-[90vh] overflow-y-auto">
+              <CreateQuestionModal
+                onClose={() => { setShowCreateHomework(false); setRefreshTrigger((n) => n + 1); }}
+                requireClass
+              />
+            </div>
+          </div>
+        )}
       </>
     );
   }
@@ -140,6 +165,7 @@ function MainPage() {
       <Layout
         sidebar={sidebar}
         questionsSidebar={questionsSidebar}
+        homeworkSidebar={homeworkSidebar}
         rightPanel={leaderboard}
         isAdmin={isAdmin}
         onAdminLogin={() => setShowAdminLogin(true)}
@@ -149,6 +175,16 @@ function MainPage() {
       </Layout>
       {showAdminLogin && (
         <AdminLoginModal onLogin={handleAdminLogin} onClose={() => setShowAdminLogin(false)} />
+      )}
+      {showCreateHomework && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="max-w-lg w-full max-h-[90vh] overflow-y-auto">
+            <CreateQuestionModal
+              onClose={() => { setShowCreateHomework(false); setRefreshTrigger((n) => n + 1); }}
+              requireClass
+            />
+          </div>
+        </div>
       )}
     </>
   );
