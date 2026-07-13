@@ -320,10 +320,7 @@ export default function QuestionResultsView() {
                       {sub.feedback_text ? (
                         <div className="flex items-start gap-1">
                           <span className="text-green-500 shrink-0">✅</span>
-                          <span
-                            className="text-xs text-zinc-700 dark:text-zinc-300 line-clamp-2"
-                            title={sub.feedback_text}
-                          >
+                          <span className="text-xs text-zinc-700 dark:text-zinc-300 whitespace-pre-wrap">
                             {sub.feedback_text}
                           </span>
                         </div>

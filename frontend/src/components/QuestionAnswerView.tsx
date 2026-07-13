@@ -127,7 +127,6 @@ export default function QuestionAnswerView() {
   }
 
   if (hasSubmitted && result) {
-    const shareUrl = `${window.location.origin}/share/${result.id}`;
     return (
       <div className="min-h-screen bg-white dark:bg-zinc-900 p-8">
         <div className="max-w-2xl mx-auto">
@@ -191,24 +190,12 @@ export default function QuestionAnswerView() {
               )}
 
               <div className="border-t border-gray-200 dark:border-zinc-600 pt-4">
-                <label className="text-sm text-zinc-600 dark:text-zinc-400 block mb-1">Share your results:</label>
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={shareUrl}
-                    readOnly
-                    className="flex-1 px-3 py-2 text-sm bg-gray-50 dark:bg-zinc-700 border border-gray-200 dark:border-zinc-600 rounded text-zinc-800 dark:text-zinc-200"
-                  />
-                  <button
-                    onClick={() => navigator.clipboard.writeText(shareUrl)}
-                    className="px-3 py-2 text-sm bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
-                  >
-                    Copy
-                  </button>
-                </div>
-                <p className="text-xs text-zinc-400 mt-2">
-                  💡 Check this link later for teacher feedback on your submission.
-                </p>
+                <a
+                  href={`/q/${id}/results`}
+                  className="block w-full px-4 py-3 text-center text-sm font-medium bg-indigo-500 text-white rounded-lg hover:bg-indigo-600 transition-colors"
+                >
+                  📋 View All Submissions & Teacher Feedback
+                </a>
               </div>
             </div>
           </div>
