@@ -75,6 +75,7 @@ pub struct SubmissionEntry {
     pub score: f64,
     pub fluency_score: Option<f64>,
     pub created_at: String,
+    pub feedback_text: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -84,6 +85,7 @@ pub struct QuestionSummary {
     pub time_limit_secs: i32,
     pub created_at: String,
     pub submission_count: i32,
+    pub class_label: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -104,6 +106,7 @@ pub struct QuestionWithCreator {
     pub time_limit_secs: i32,
     pub created_at: String,
     pub submission_count: i32,
+    pub class_label: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -193,6 +196,14 @@ impl Database {
             );
             CREATE INDEX IF NOT EXISTS idx_questions_creator_id ON questions(creator_id);"
         )?;
+
+        // Migrate: add class_label column if missing
+        let has_class_label: bool = conn
+            .prepare("SELECT class_label FROM questions LIMIT 0")
+            .is_ok();
+        if !has_class_label {
+            conn.execute_batch("ALTER TABLE questions ADD COLUMN class_label TEXT;")?;
+        }
 
         // Create admin_password table
         conn.execute_batch(
@@ -342,13 +353,13 @@ impl Database {
         rows.collect()
     }
 
-    pub fn insert_question(&self, creator_id: &str, text: &str, time_limit_secs: i32) -> Result<String> {
+    pub fn insert_question(&self, creator_id: &str, text: &str, time_limit_secs: i32, class_label: Option<&str>) -> Result<String> {
         let id = uuid::Uuid::new_v4().to_string();
         let conn = self.conn.lock().unwrap();
         conn.execute(
-            "INSERT INTO questions (id, creator_id, text, time_limit_secs)
-             VALUES (?1, ?2, ?3, ?4)",
-            params![id, creator_id, text, time_limit_secs],
+            "INSERT INTO questions (id, creator_id, text, time_limit_secs, class_label)
+             VALUES (?1, ?2, ?3, ?4, ?5)",
+            params![id, creator_id, text, time_limit_secs, class_label],
         )?;
         Ok(id)
     }
@@ -378,10 +389,11 @@ impl Database {
     pub fn get_question_submissions(&self, question_id: &str) -> Result<Vec<SubmissionEntry>> {
         let conn = self.conn.lock().unwrap();
         let mut stmt = conn.prepare(
-            "SELECT id, speaker_name, score, fluency_json, created_at
-             FROM recordings
-             WHERE question_id = ?1 AND submitted = 1
-             ORDER BY score DESC",
+            "SELECT r.id, r.speaker_name, r.score, r.fluency_json, r.created_at,
+                    (SELECT f.feedback_text FROM feedbacks f WHERE f.recording_id = r.id ORDER BY f.created_at DESC LIMIT 1) as feedback_text
+             FROM recordings r
+             WHERE r.question_id = ?1 AND r.submitted = 1
+             ORDER BY r.score DESC",
         )?;
         let rows = stmt.query_map(params![question_id], |row| {
             let fluency_json: Option<String> = row.get(3)?;
@@ -396,6 +408,7 @@ impl Database {
                 score: row.get(2)?,
                 fluency_score,
                 created_at: row.get(4)?,
+                feedback_text: row.get(5)?,
             })
         })?;
         rows.collect()
@@ -405,9 +418,10 @@ impl Database {
         let conn = self.conn.lock().unwrap();
         let mut stmt = conn.prepare(
             "SELECT q.id, q.text, q.time_limit_secs, q.created_at,
-                    (SELECT COUNT(*) FROM recordings r WHERE r.question_id = q.id AND r.submitted = 1) as submission_count
+                    (SELECT COUNT(*) FROM recordings r WHERE r.question_id = q.id AND r.submitted = 1) as submission_count,
+                    q.class_label
              FROM questions q
-             WHERE q.creator_id = ?1
+             WHERE q.creator_id = ?1 AND q.class_label IS NULL
              ORDER BY q.created_at DESC",
         )?;
         let rows = stmt.query_map(params![creator_id], |row| {
@@ -417,6 +431,7 @@ impl Database {
                 time_limit_secs: row.get(2)?,
                 created_at: row.get(3)?,
                 submission_count: row.get(4)?,
+                class_label: row.get(5)?,
             })
         })?;
         rows.collect()
@@ -438,8 +453,10 @@ impl Database {
         let conn = self.conn.lock().unwrap();
         let mut stmt = conn.prepare(
             "SELECT q.id, q.creator_id, q.text, q.time_limit_secs, q.created_at,
-                    (SELECT COUNT(*) FROM recordings r WHERE r.question_id = q.id AND r.submitted = 1) as submission_count
+                    (SELECT COUNT(*) FROM recordings r WHERE r.question_id = q.id AND r.submitted = 1) as submission_count,
+                    q.class_label
              FROM questions q
+             WHERE q.class_label IS NULL
              ORDER BY q.created_at DESC",
         )?;
         let rows = stmt.query_map([], |row| {
@@ -450,6 +467,82 @@ impl Database {
                 time_limit_secs: row.get(3)?,
                 created_at: row.get(4)?,
                 submission_count: row.get(5)?,
+                class_label: row.get(6)?,
+            })
+        })?;
+        rows.collect()
+    }
+
+    pub fn list_homework(&self, creator_id: &str, class_filter: Option<&str>) -> Result<Vec<QuestionSummary>> {
+        let conn = self.conn.lock().unwrap();
+        let (sql, params_vec): (String, Vec<Box<dyn rusqlite::types::ToSql>>) = match class_filter {
+            Some(label) => (
+                "SELECT q.id, q.text, q.time_limit_secs, q.created_at,
+                        (SELECT COUNT(*) FROM recordings r WHERE r.question_id = q.id AND r.submitted = 1) as submission_count,
+                        q.class_label
+                 FROM questions q
+                 WHERE q.creator_id = ?1 AND q.class_label = ?2
+                 ORDER BY q.created_at DESC".to_string(),
+                vec![Box::new(creator_id.to_string()), Box::new(label.to_string())],
+            ),
+            None => (
+                "SELECT q.id, q.text, q.time_limit_secs, q.created_at,
+                        (SELECT COUNT(*) FROM recordings r WHERE r.question_id = q.id AND r.submitted = 1) as submission_count,
+                        q.class_label
+                 FROM questions q
+                 WHERE q.creator_id = ?1 AND q.class_label IS NOT NULL
+                 ORDER BY q.created_at DESC".to_string(),
+                vec![Box::new(creator_id.to_string())],
+            ),
+        };
+        let mut stmt = conn.prepare(&sql)?;
+        let params_refs: Vec<&dyn rusqlite::types::ToSql> = params_vec.iter().map(|p| p.as_ref()).collect();
+        let rows = stmt.query_map(params_refs.as_slice(), |row| {
+            Ok(QuestionSummary {
+                id: row.get(0)?,
+                text: row.get(1)?,
+                time_limit_secs: row.get(2)?,
+                created_at: row.get(3)?,
+                submission_count: row.get(4)?,
+                class_label: row.get(5)?,
+            })
+        })?;
+        rows.collect()
+    }
+
+    pub fn list_all_homework(&self, class_filter: Option<&str>) -> Result<Vec<QuestionWithCreator>> {
+        let conn = self.conn.lock().unwrap();
+        let (sql, params_vec): (String, Vec<Box<dyn rusqlite::types::ToSql>>) = match class_filter {
+            Some(label) => (
+                "SELECT q.id, q.creator_id, q.text, q.time_limit_secs, q.created_at,
+                        (SELECT COUNT(*) FROM recordings r WHERE r.question_id = q.id AND r.submitted = 1) as submission_count,
+                        q.class_label
+                 FROM questions q
+                 WHERE q.class_label = ?1
+                 ORDER BY q.created_at DESC".to_string(),
+                vec![Box::new(label.to_string())],
+            ),
+            None => (
+                "SELECT q.id, q.creator_id, q.text, q.time_limit_secs, q.created_at,
+                        (SELECT COUNT(*) FROM recordings r WHERE r.question_id = q.id AND r.submitted = 1) as submission_count,
+                        q.class_label
+                 FROM questions q
+                 WHERE q.class_label IS NOT NULL
+                 ORDER BY q.created_at DESC".to_string(),
+                vec![],
+            ),
+        };
+        let mut stmt = conn.prepare(&sql)?;
+        let params_refs: Vec<&dyn rusqlite::types::ToSql> = params_vec.iter().map(|p| p.as_ref()).collect();
+        let rows = stmt.query_map(params_refs.as_slice(), |row| {
+            Ok(QuestionWithCreator {
+                id: row.get(0)?,
+                creator_id: row.get(1)?,
+                text: row.get(2)?,
+                time_limit_secs: row.get(3)?,
+                created_at: row.get(4)?,
+                submission_count: row.get(5)?,
+                class_label: row.get(6)?,
             })
         })?;
         rows.collect()
@@ -495,15 +588,15 @@ impl Database {
 
     // --- Batch question creation ---
 
-    pub fn insert_questions_batch(&self, creator_id: &str, questions: &[(String, i32)]) -> Result<Vec<String>> {
+    pub fn insert_questions_batch(&self, creator_id: &str, questions: &[(String, i32, Option<String>)]) -> Result<Vec<String>> {
         let conn = self.conn.lock().unwrap();
         let mut ids = Vec::new();
-        for (text, time_limit_secs) in questions {
+        for (text, time_limit_secs, class_label) in questions {
             let id = uuid::Uuid::new_v4().to_string();
             conn.execute(
-                "INSERT INTO questions (id, creator_id, text, time_limit_secs)
-                 VALUES (?1, ?2, ?3, ?4)",
-                params![id, creator_id, text, time_limit_secs],
+                "INSERT INTO questions (id, creator_id, text, time_limit_secs, class_label)
+                 VALUES (?1, ?2, ?3, ?4, ?5)",
+                params![id, creator_id, text, time_limit_secs, class_label],
             )?;
             ids.push(id);
         }
