@@ -92,7 +92,7 @@ export default function HomeworkPanel({ userId, refreshTrigger, isAdmin, adminTo
           {questions.length > 0 && (
             <button
               onClick={() => { setSelectMode(!selectMode); setSelected(new Set()); }}
-              className="text-[11px] text-zinc-500 hover:text-zinc-700"
+              className="text-[11px] text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200"
             >
               {selectMode ? 'Cancel' : 'Select'}
             </button>
