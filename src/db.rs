@@ -85,6 +85,7 @@ pub struct QuestionSummary {
     pub time_limit_secs: i32,
     pub created_at: String,
     pub submission_count: i32,
+    pub feedback_count: i32,
     pub class_label: Option<String>,
 }
 
@@ -106,6 +107,7 @@ pub struct QuestionWithCreator {
     pub time_limit_secs: i32,
     pub created_at: String,
     pub submission_count: i32,
+    pub feedback_count: i32,
     pub class_label: Option<String>,
 }
 
@@ -419,6 +421,7 @@ impl Database {
         let mut stmt = conn.prepare(
             "SELECT q.id, q.text, q.time_limit_secs, q.created_at,
                     (SELECT COUNT(*) FROM recordings r WHERE r.question_id = q.id AND r.submitted = 1) as submission_count,
+                    (SELECT COUNT(DISTINCT r2.id) FROM recordings r2 JOIN feedbacks f ON f.recording_id = r2.id WHERE r2.question_id = q.id AND r2.submitted = 1) as feedback_count,
                     q.class_label
              FROM questions q
              WHERE q.creator_id = ?1 AND q.class_label IS NULL
@@ -431,7 +434,8 @@ impl Database {
                 time_limit_secs: row.get(2)?,
                 created_at: row.get(3)?,
                 submission_count: row.get(4)?,
-                class_label: row.get(5)?,
+                feedback_count: row.get(5)?,
+                class_label: row.get(6)?,
             })
         })?;
         rows.collect()
@@ -454,6 +458,7 @@ impl Database {
         let mut stmt = conn.prepare(
             "SELECT q.id, q.creator_id, q.text, q.time_limit_secs, q.created_at,
                     (SELECT COUNT(*) FROM recordings r WHERE r.question_id = q.id AND r.submitted = 1) as submission_count,
+                    (SELECT COUNT(DISTINCT r2.id) FROM recordings r2 JOIN feedbacks f ON f.recording_id = r2.id WHERE r2.question_id = q.id AND r2.submitted = 1) as feedback_count,
                     q.class_label
              FROM questions q
              WHERE q.class_label IS NULL
@@ -467,7 +472,8 @@ impl Database {
                 time_limit_secs: row.get(3)?,
                 created_at: row.get(4)?,
                 submission_count: row.get(5)?,
-                class_label: row.get(6)?,
+                feedback_count: row.get(6)?,
+                class_label: row.get(7)?,
             })
         })?;
         rows.collect()
@@ -479,6 +485,7 @@ impl Database {
             Some(label) => (
                 "SELECT q.id, q.text, q.time_limit_secs, q.created_at,
                         (SELECT COUNT(*) FROM recordings r WHERE r.question_id = q.id AND r.submitted = 1) as submission_count,
+                        (SELECT COUNT(DISTINCT r2.id) FROM recordings r2 JOIN feedbacks f ON f.recording_id = r2.id WHERE r2.question_id = q.id AND r2.submitted = 1) as feedback_count,
                         q.class_label
                  FROM questions q
                  WHERE q.creator_id = ?1 AND q.class_label = ?2
@@ -488,6 +495,7 @@ impl Database {
             None => (
                 "SELECT q.id, q.text, q.time_limit_secs, q.created_at,
                         (SELECT COUNT(*) FROM recordings r WHERE r.question_id = q.id AND r.submitted = 1) as submission_count,
+                        (SELECT COUNT(DISTINCT r2.id) FROM recordings r2 JOIN feedbacks f ON f.recording_id = r2.id WHERE r2.question_id = q.id AND r2.submitted = 1) as feedback_count,
                         q.class_label
                  FROM questions q
                  WHERE q.creator_id = ?1 AND q.class_label IS NOT NULL
@@ -504,7 +512,8 @@ impl Database {
                 time_limit_secs: row.get(2)?,
                 created_at: row.get(3)?,
                 submission_count: row.get(4)?,
-                class_label: row.get(5)?,
+                feedback_count: row.get(5)?,
+                class_label: row.get(6)?,
             })
         })?;
         rows.collect()
@@ -516,6 +525,7 @@ impl Database {
             Some(label) => (
                 "SELECT q.id, q.creator_id, q.text, q.time_limit_secs, q.created_at,
                         (SELECT COUNT(*) FROM recordings r WHERE r.question_id = q.id AND r.submitted = 1) as submission_count,
+                        (SELECT COUNT(DISTINCT r2.id) FROM recordings r2 JOIN feedbacks f ON f.recording_id = r2.id WHERE r2.question_id = q.id AND r2.submitted = 1) as feedback_count,
                         q.class_label
                  FROM questions q
                  WHERE q.class_label = ?1
@@ -525,6 +535,7 @@ impl Database {
             None => (
                 "SELECT q.id, q.creator_id, q.text, q.time_limit_secs, q.created_at,
                         (SELECT COUNT(*) FROM recordings r WHERE r.question_id = q.id AND r.submitted = 1) as submission_count,
+                        (SELECT COUNT(DISTINCT r2.id) FROM recordings r2 JOIN feedbacks f ON f.recording_id = r2.id WHERE r2.question_id = q.id AND r2.submitted = 1) as feedback_count,
                         q.class_label
                  FROM questions q
                  WHERE q.class_label IS NOT NULL
@@ -542,7 +553,8 @@ impl Database {
                 time_limit_secs: row.get(3)?,
                 created_at: row.get(4)?,
                 submission_count: row.get(5)?,
-                class_label: row.get(6)?,
+                feedback_count: row.get(6)?,
+                class_label: row.get(7)?,
             })
         })?;
         rows.collect()
