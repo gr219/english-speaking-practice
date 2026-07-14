@@ -133,9 +133,20 @@ export default function MyQuestions({ userId, refreshTrigger, isAdmin, adminToke
                   <span className="text-[11px] text-zinc-400">
                     {formatRelativeTime(q.created_at)}
                   </span>
-                  <span className="text-[11px] text-indigo-500 dark:text-indigo-400 font-medium">
-                    {q.submission_count} submission{q.submission_count !== 1 ? 's' : ''}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[11px] text-indigo-500 dark:text-indigo-400 font-medium">
+                      {q.submission_count} sub{q.submission_count !== 1 ? 's' : ''}
+                    </span>
+                    {q.submission_count > 0 && (
+                      <span className={`text-[11px] font-medium ${
+                        q.feedback_count >= q.submission_count
+                          ? 'text-green-600 dark:text-green-400'
+                          : 'text-amber-500 dark:text-amber-400'
+                      }`}>
+                        {q.feedback_count}/{q.submission_count} reviewed
+                      </span>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>

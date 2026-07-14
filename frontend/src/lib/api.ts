@@ -347,6 +347,7 @@ export interface QuestionSummary {
   time_limit_secs: number;
   created_at: string;
   submission_count: number;
+  feedback_count: number;
   class_label: string | null;
 }
 
@@ -357,6 +358,7 @@ export interface QuestionWithCreator {
   time_limit_secs: number;
   created_at: string;
   submission_count: number;
+  feedback_count: number;
   class_label: string | null;
 }
 
