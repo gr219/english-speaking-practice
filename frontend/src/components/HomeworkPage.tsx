@@ -12,6 +12,37 @@ type SortDirection = 'asc' | 'desc';
 type FilterKey = 'class_label' | 'reviewed_status';
 type Filters = Partial<Record<FilterKey, string>>;
 
+interface FilterDropdownProps {
+  filterKey: FilterKey;
+  options: string[];
+  openFilter: FilterKey | null;
+  filters: Filters;
+  setFilter: (key: FilterKey, value: string | undefined) => void;
+}
+
+function FilterDropdown({ filterKey, options, openFilter, filters, setFilter }: FilterDropdownProps) {
+  if (openFilter !== filterKey) return null;
+  return (
+    <div className="absolute top-full left-0 mt-1 bg-white dark:bg-zinc-700 border border-gray-200 dark:border-zinc-600 rounded-lg shadow-lg z-20 min-w-[140px] py-1">
+      <button
+        onClick={() => setFilter(filterKey, undefined)}
+        className={`w-full text-left px-3 py-1.5 text-xs hover:bg-gray-100 dark:hover:bg-zinc-600 ${!filters[filterKey] ? 'font-semibold text-indigo-600 dark:text-indigo-400' : 'text-zinc-700 dark:text-zinc-200'}`}
+      >
+        All
+      </button>
+      {options.map((opt) => (
+        <button
+          key={opt}
+          onClick={() => setFilter(filterKey, opt)}
+          className={`w-full text-left px-3 py-1.5 text-xs hover:bg-gray-100 dark:hover:bg-zinc-600 ${filters[filterKey] === opt ? 'font-semibold text-indigo-600 dark:text-indigo-400' : 'text-zinc-700 dark:text-zinc-200'}`}
+        >
+          {opt}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 function getReviewedStatus(q: QuestionSummary | QuestionWithCreator): string {
   if (q.submission_count === 0) return 'No submissions';
   if (q.feedback_count >= q.submission_count) return 'All reviewed';
@@ -181,29 +212,6 @@ export default function HomeworkPage() {
     setOpenFilter(null);
   };
 
-  const FilterDropdown = ({ filterKey, options }: { filterKey: FilterKey; options: string[] }) => {
-    if (openFilter !== filterKey) return null;
-    return (
-      <div className="absolute top-full left-0 mt-1 bg-white dark:bg-zinc-700 border border-gray-200 dark:border-zinc-600 rounded-lg shadow-lg z-20 min-w-[140px] py-1">
-        <button
-          onClick={() => setFilter(filterKey, undefined)}
-          className={`w-full text-left px-3 py-1.5 text-xs hover:bg-gray-100 dark:hover:bg-zinc-600 ${!filters[filterKey] ? 'font-semibold text-indigo-600 dark:text-indigo-400' : 'text-zinc-700 dark:text-zinc-200'}`}
-        >
-          All
-        </button>
-        {options.map((opt) => (
-          <button
-            key={opt}
-            onClick={() => setFilter(filterKey, opt)}
-            className={`w-full text-left px-3 py-1.5 text-xs hover:bg-gray-100 dark:hover:bg-zinc-600 ${filters[filterKey] === opt ? 'font-semibold text-indigo-600 dark:text-indigo-400' : 'text-zinc-700 dark:text-zinc-200'}`}
-          >
-            {opt}
-          </button>
-        ))}
-      </div>
-    );
-  };
-
   if (!isAdmin) return null;
 
   return (
@@ -316,7 +324,7 @@ export default function HomeworkPage() {
                       >
                         🔽
                       </button>
-                      <FilterDropdown filterKey="class_label" options={classLabels} />
+                      <FilterDropdown filterKey="class_label" options={classLabels} openFilter={openFilter} filters={filters} setFilter={setFilter} />
                     </th>
                     <th
                       className="px-4 py-3 text-center text-xs font-semibold text-zinc-600 dark:text-zinc-300 cursor-pointer hover:text-zinc-900 dark:hover:text-zinc-100 select-none"
@@ -338,7 +346,7 @@ export default function HomeworkPage() {
                       >
                         🔽
                       </button>
-                      <FilterDropdown filterKey="reviewed_status" options={reviewedStatuses} />
+                      <FilterDropdown filterKey="reviewed_status" options={reviewedStatuses} openFilter={openFilter} filters={filters} setFilter={setFilter} />
                     </th>
                     <th
                       className="px-4 py-3 text-left text-xs font-semibold text-zinc-600 dark:text-zinc-300 cursor-pointer hover:text-zinc-900 dark:hover:text-zinc-100 select-none"
