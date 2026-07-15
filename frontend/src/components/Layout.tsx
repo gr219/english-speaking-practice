@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import IconRail from './IconRail';
 
 interface LayoutProps {
@@ -15,6 +15,7 @@ interface LayoutProps {
 export default function Layout({ children, sidebar, questionsSidebar, rightPanel, isAdmin = false, onAdminLogin, onAdminPanel }: LayoutProps) {
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [isQuestionsOpen, setIsQuestionsOpen] = useState(isAdmin);
+  const location = useLocation();
 
   useEffect(() => {
     if (isAdmin) setIsQuestionsOpen(true);
@@ -128,6 +129,14 @@ export default function Layout({ children, sidebar, questionsSidebar, rightPanel
         >
           📝
         </button>
+        {isAdmin && (
+          <Link
+            to="/homework"
+            className={`text-lg ${location.pathname === '/homework' ? 'opacity-100' : 'opacity-50'}`}
+          >
+            📚
+          </Link>
+        )}
         <span className="text-lg opacity-50">🎙️</span>
       </div>
     </div>

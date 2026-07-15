@@ -7,4 +7,4 @@ model/
 deps/
 /public/
 .superpowers/
-*.wav
+*.wav.superpowers/

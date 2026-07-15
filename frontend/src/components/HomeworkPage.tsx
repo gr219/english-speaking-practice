@@ -79,20 +79,20 @@ export default function HomeworkPage() {
 
   // Fetch data
   const fetchQuestions = useCallback(async () => {
+    if (!isAdmin || !adminToken) return;
     try {
-      if (isAdmin && adminToken) {
-        const data = await api.adminListHomework(adminToken);
-        setQuestions(data);
-      } else {
-        const data = await api.listHomework(userId);
-        setQuestions(data);
-      }
+      const data = await api.adminListHomework(adminToken);
+      setQuestions(data);
     } catch {
       // ignore
     }
-  }, [isAdmin, adminToken, userId]);
+  }, [isAdmin, adminToken]);
 
   useEffect(() => { fetchQuestions(); }, [fetchQuestions]);
+
+  useEffect(() => {
+    setSelected(new Set());
+  }, [filters]);
 
   // Close filter dropdown on outside click
   useEffect(() => {
