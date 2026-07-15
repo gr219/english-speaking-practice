@@ -443,8 +443,18 @@ export default function HomeworkPage() {
 
       {/* Create modal */}
       {showCreateHomework && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="max-w-lg w-full max-h-[90vh] overflow-y-auto">
+        <div
+          className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
+          onClick={() => { setShowCreateHomework(false); fetchQuestions(); }}
+        >
+          <div className="relative max-w-lg w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <button
+              onClick={() => { setShowCreateHomework(false); fetchQuestions(); }}
+              className="absolute top-2 right-2 z-10 w-7 h-7 flex items-center justify-center rounded-full bg-gray-200 dark:bg-zinc-600 text-zinc-600 dark:text-zinc-300 hover:bg-gray-300 dark:hover:bg-zinc-500 transition-colors"
+              title="Close"
+            >
+              ×
+            </button>
             <CreateQuestionModal
               onClose={() => { setShowCreateHomework(false); fetchQuestions(); }}
               requireClass
