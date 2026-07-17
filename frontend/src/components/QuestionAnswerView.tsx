@@ -8,6 +8,7 @@ import WordPills from './WordPills';
 import FluencyDisplay from './FluencyDisplay';
 import GrammarDisplay from './GrammarDisplay';
 import Banner from './Banner';
+import AudioPlayer from './AudioPlayer';
 import MicPermissionAlert from './MicPermissionAlert';
 
 export default function QuestionAnswerView() {
@@ -208,7 +209,7 @@ export default function QuestionAnswerView() {
               {audioBlob && (
                 <div className="border-t border-gray-200 dark:border-zinc-600 pt-4">
                   <div className="text-sm text-zinc-600 dark:text-zinc-400 mb-2">Your recording:</div>
-                  <audio src={URL.createObjectURL(audioBlob)} controls className="w-full" />
+                  <AudioPlayer src={URL.createObjectURL(audioBlob)} />
                 </div>
               )}
 
@@ -344,7 +345,7 @@ export default function QuestionAnswerView() {
               {audioBlob && (
                 <div className="border-t border-gray-200 dark:border-zinc-600 pt-4">
                   <div className="text-sm text-zinc-600 dark:text-zinc-400 mb-2">Your recording:</div>
-                  <audio src={URL.createObjectURL(audioBlob)} controls className="w-full" />
+                  <AudioPlayer src={URL.createObjectURL(audioBlob)} />
                 </div>
               )}
               <div className="flex gap-2">

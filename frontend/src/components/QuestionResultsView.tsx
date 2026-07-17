@@ -4,6 +4,7 @@ import api, { Question, SubmissionEntry } from '../lib/api';
 import { useUserId } from '../hooks/useUserId';
 import { useAdmin } from '../hooks/useAdmin';
 import Banner from './Banner';
+import AudioPlayer from './AudioPlayer';
 
 export default function QuestionResultsView() {
   const { id } = useParams<{ id: string }>();
@@ -299,12 +300,10 @@ export default function QuestionResultsView() {
                       </div>
                       {playingId === sub.id && (
                         <div className="mt-2">
-                          <audio
+                          <AudioPlayer
                             src={api.getAudioUrl(sub.id)}
-                            controls
                             autoPlay
                             onEnded={() => setPlayingId(null)}
-                            className="w-full h-10"
                           />
                         </div>
                       )}
