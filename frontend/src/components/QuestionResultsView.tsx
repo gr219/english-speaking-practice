@@ -335,9 +335,9 @@ export default function QuestionResultsView() {
                     </td>
                     <td className="px-4 py-3 text-sm align-top">
                       {sub.feedback_text ? (
-                        <div className="flex items-start gap-1">
+                        <div className="group/fb flex items-start gap-1 px-2 py-1.5 rounded-md cursor-default transition-all duration-200 hover:bg-blue-50 dark:hover:bg-blue-900/20 hover:shadow-sm hover:ring-1 hover:ring-blue-200 dark:hover:ring-blue-800">
                           <span className="text-green-500 shrink-0">✅</span>
-                          <span className="text-xs text-zinc-700 dark:text-zinc-300 whitespace-pre-wrap">
+                          <span className="text-xs text-zinc-500 dark:text-zinc-400 whitespace-pre-wrap transition-colors duration-200 group-hover/fb:text-zinc-900 dark:group-hover/fb:text-zinc-100">
                             {sub.feedback_text}
                           </span>
                         </div>
