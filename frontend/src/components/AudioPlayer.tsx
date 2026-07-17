@@ -7,6 +7,7 @@ interface AudioPlayerProps {
 }
 
 function formatTime(seconds: number): string {
+  if (!isFinite(seconds)) return '0:00';
   const m = Math.floor(seconds / 60);
   const s = Math.floor(seconds % 60);
   return `${m}:${s.toString().padStart(2, '0')}`;
@@ -15,10 +16,11 @@ function formatTime(seconds: number): string {
 export default function AudioPlayer({ src, autoPlay, onEnded }: AudioPlayerProps) {
   const audioRef = useRef<HTMLAudioElement>(null);
   const progressRef = useRef<HTMLDivElement>(null);
+  const draggingRef = useRef(false);
   const [playing, setPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
-  const [dragging, setDragging] = useState(false);
+  const [, forceRender] = useState(0);
 
   const progress = duration > 0 ? (currentTime / duration) * 100 : 0;
 
@@ -26,8 +28,12 @@ export default function AudioPlayer({ src, autoPlay, onEnded }: AudioPlayerProps
     const audio = audioRef.current;
     if (!audio) return;
 
-    const onTimeUpdate = () => { if (!dragging) setCurrentTime(audio.currentTime); };
-    const onLoaded = () => setDuration(audio.duration);
+    const onTimeUpdate = () => {
+      if (!draggingRef.current) setCurrentTime(audio.currentTime);
+    };
+    const onLoaded = () => {
+      if (isFinite(audio.duration)) setDuration(audio.duration);
+    };
     const onPlay = () => setPlaying(true);
     const onPause = () => setPlaying(false);
     const onEnd = () => { setPlaying(false); onEnded?.(); };
@@ -47,7 +53,7 @@ export default function AudioPlayer({ src, autoPlay, onEnded }: AudioPlayerProps
       audio.removeEventListener('pause', onPause);
       audio.removeEventListener('ended', onEnd);
     };
-  }, [dragging, onEnded]);
+  }, [onEnded]);
 
   const seekTo = useCallback((clientX: number) => {
     const bar = progressRef.current;
@@ -56,22 +62,24 @@ export default function AudioPlayer({ src, autoPlay, onEnded }: AudioPlayerProps
     const rect = bar.getBoundingClientRect();
     const ratio = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
     const newTime = ratio * duration;
-    audio.currentTime = newTime;
     setCurrentTime(newTime);
+    audio.currentTime = newTime;
   }, [duration]);
 
   const handlePointerDown = (e: React.PointerEvent) => {
-    setDragging(true);
+    draggingRef.current = true;
+    forceRender((n) => n + 1);
     seekTo(e.clientX);
     (e.target as HTMLElement).setPointerCapture(e.pointerId);
   };
 
   const handlePointerMove = (e: React.PointerEvent) => {
-    if (dragging) seekTo(e.clientX);
+    if (draggingRef.current) seekTo(e.clientX);
   };
 
   const handlePointerUp = () => {
-    setDragging(false);
+    draggingRef.current = false;
+    forceRender((n) => n + 1);
   };
 
   const togglePlay = () => {
@@ -83,7 +91,7 @@ export default function AudioPlayer({ src, autoPlay, onEnded }: AudioPlayerProps
 
   return (
     <div className="flex items-center gap-3 w-full py-2">
-      <audio ref={audioRef} src={src} autoPlay={autoPlay} preload="metadata" />
+      <audio ref={audioRef} src={src} autoPlay={autoPlay} preload="auto" />
       <button
         onClick={togglePlay}
         className="shrink-0 w-8 h-8 flex items-center justify-center rounded-full bg-blue-500 hover:bg-blue-600 text-white text-sm"
