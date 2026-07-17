@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import api, { Question, SubmissionEntry } from '../lib/api';
 import { useUserId } from '../hooks/useUserId';
@@ -20,6 +20,14 @@ export default function QuestionResultsView() {
   const [feedbackSent, setFeedbackSent] = useState<Record<string, boolean>>({});
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [feedbackPopupId, setFeedbackPopupId] = useState<string | null>(null);
+  const feedbackTextareaRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    if (feedbackPopupId && feedbackTextareaRef.current) {
+      feedbackTextareaRef.current.focus();
+    }
+  }, [feedbackPopupId]);
 
   const isCreator = question?.creator_id === userId;
   const canFeedback = isAdmin || isCreator;
@@ -296,7 +304,7 @@ export default function QuestionResultsView() {
                             controls
                             autoPlay
                             onEnded={() => setPlayingId(null)}
-                            className="w-full max-w-xs"
+                            className="w-full h-10"
                           />
                         </div>
                       )}
@@ -308,10 +316,11 @@ export default function QuestionResultsView() {
                             <div className="flex gap-1">
                               <input
                                 type="text"
+                                readOnly
                                 value={feedbackText[sub.id] || ''}
-                                onChange={(e) => setFeedbackText((prev) => ({ ...prev, [sub.id]: e.target.value }))}
+                                onFocus={() => setFeedbackPopupId(sub.id)}
                                 placeholder="Write feedback..."
-                                className="flex-1 px-2 py-1 text-xs border border-gray-200 dark:border-zinc-600 rounded bg-white dark:bg-zinc-700 text-zinc-800 dark:text-zinc-200 placeholder-zinc-400 focus:outline-none focus:ring-1 focus:ring-blue-300"
+                                className="flex-1 px-2 py-1 text-xs border border-gray-200 dark:border-zinc-600 rounded bg-white dark:bg-zinc-700 text-zinc-800 dark:text-zinc-200 placeholder-zinc-400 focus:outline-none focus:ring-1 focus:ring-blue-300 cursor-pointer"
                               />
                               <button
                                 onClick={() => handleSubmitFeedback(sub.id)}
@@ -354,6 +363,53 @@ export default function QuestionResultsView() {
         </div>
       </div>
       </div>
+
+      {/* Feedback popup modal */}
+      {feedbackPopupId && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+          onClick={() => setFeedbackPopupId(null)}
+        >
+          <div
+            className="bg-white dark:bg-zinc-800 rounded-lg shadow-xl p-6 w-full max-w-lg mx-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-sm font-semibold text-zinc-800 dark:text-zinc-200 mb-3">
+              Write Feedback
+            </h3>
+            <textarea
+              ref={feedbackTextareaRef}
+              value={feedbackText[feedbackPopupId] || ''}
+              onChange={(e) => {
+                const id = feedbackPopupId;
+                setFeedbackText((prev) => ({ ...prev, [id]: e.target.value }));
+              }}
+              placeholder="Write your feedback here..."
+              rows={6}
+              className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-700 text-zinc-800 dark:text-zinc-200 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-blue-400 resize-y"
+            />
+            <div className="flex justify-end gap-2 mt-3">
+              <button
+                onClick={() => setFeedbackPopupId(null)}
+                className="px-3 py-1.5 text-sm text-zinc-600 dark:text-zinc-300 hover:text-zinc-800 dark:hover:text-zinc-100 rounded"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  const popupId = feedbackPopupId;
+                  setFeedbackPopupId(null);
+                  handleSubmitFeedback(popupId);
+                }}
+                disabled={feedbackSending === feedbackPopupId || !feedbackText[feedbackPopupId]?.trim()}
+                className="px-4 py-1.5 text-sm bg-indigo-500 text-white rounded hover:bg-indigo-600 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {feedbackSending === feedbackPopupId ? 'Sending...' : 'Send Feedback'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
