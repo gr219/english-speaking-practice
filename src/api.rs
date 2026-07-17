@@ -311,6 +311,7 @@ async fn get_recording_handler(
 async fn get_recording_audio_handler(
     state: State<ServerState>,
     Path(id): Path<String>,
+    headers: HeaderMap,
 ) -> Result<impl IntoResponse, StatusCode> {
     let recording = state
         .db
@@ -322,10 +323,48 @@ async fn get_recording_audio_handler(
     let audio_bytes =
         std::fs::read(&audio_path).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
-    Ok((
-        [(axum::http::header::CONTENT_TYPE, "audio/wav")],
-        audio_bytes,
-    ))
+    let total = audio_bytes.len();
+
+    // Handle Range requests for seeking support
+    if let Some(range_header) = headers.get(axum::http::header::RANGE) {
+        if let Ok(range_str) = range_header.to_str() {
+            if let Some(range) = range_str.strip_prefix("bytes=") {
+                let parts: Vec<&str> = range.splitn(2, '-').collect();
+                let start = parts[0].parse::<usize>().unwrap_or(0);
+                let end = if parts.len() > 1 && !parts[1].is_empty() {
+                    parts[1].parse::<usize>().unwrap_or(total - 1).min(total - 1)
+                } else {
+                    total - 1
+                };
+
+                if start >= total {
+                    return Ok(axum::http::Response::builder()
+                        .status(StatusCode::RANGE_NOT_SATISFIABLE)
+                        .header("Content-Range", format!("bytes */{}", total))
+                        .body(Body::empty())
+                        .unwrap());
+                }
+
+                let slice = &audio_bytes[start..=end];
+                return Ok(axum::http::Response::builder()
+                    .status(StatusCode::PARTIAL_CONTENT)
+                    .header("Content-Type", "audio/wav")
+                    .header("Accept-Ranges", "bytes")
+                    .header("Content-Length", slice.len().to_string())
+                    .header("Content-Range", format!("bytes {}-{}/{}", start, end, total))
+                    .body(Body::from(slice.to_vec()))
+                    .unwrap());
+            }
+        }
+    }
+
+    Ok(axum::http::Response::builder()
+        .status(StatusCode::OK)
+        .header("Content-Type", "audio/wav")
+        .header("Accept-Ranges", "bytes")
+        .header("Content-Length", total.to_string())
+        .body(Body::from(audio_bytes))
+        .unwrap())
 }
 
 async fn delete_recording_handler(

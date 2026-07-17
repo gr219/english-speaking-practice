@@ -22,6 +22,7 @@ export default function QuestionResultsView() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkDeleting, setBulkDeleting] = useState(false);
   const [feedbackPopupId, setFeedbackPopupId] = useState<string | null>(null);
+  const [viewingFeedback, setViewingFeedback] = useState<string | null>(null);
   const feedbackTextareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
@@ -335,16 +336,14 @@ export default function QuestionResultsView() {
                     </td>
                     <td className="px-4 py-3 text-sm align-top">
                       {sub.feedback_text ? (
-                        <div className="group/fb relative flex items-start gap-1 px-2 py-1.5 rounded-md cursor-default">
+                        <div
+                          className="flex items-start gap-1 px-2 py-1.5 rounded-md cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
+                          onClick={() => setViewingFeedback(sub.feedback_text!)}
+                        >
                           <span className="text-green-500 shrink-0">✅</span>
                           <span className="text-xs text-zinc-500 dark:text-zinc-400 whitespace-pre-wrap line-clamp-2">
                             {sub.feedback_text}
                           </span>
-                          <div className="invisible group-hover/fb:visible absolute bottom-full left-0 mb-2 z-50 w-80 max-h-60 overflow-y-auto p-4 bg-white dark:bg-zinc-800 rounded-lg shadow-xl ring-1 ring-gray-200 dark:ring-zinc-600">
-                            <p className="text-sm leading-relaxed text-zinc-800 dark:text-zinc-100 whitespace-pre-wrap">
-                              {sub.feedback_text}
-                            </p>
-                          </div>
                         </div>
                       ) : (
                         <span className="text-zinc-400">—</span>
@@ -409,6 +408,32 @@ export default function QuestionResultsView() {
                 className="px-4 py-1.5 text-sm bg-indigo-500 text-white rounded hover:bg-indigo-600 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {feedbackSending === feedbackPopupId ? 'Sending...' : 'Send Feedback'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Feedback viewing modal */}
+      {viewingFeedback && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+          onClick={() => setViewingFeedback(null)}
+        >
+          <div
+            className="bg-white dark:bg-zinc-800 rounded-lg shadow-xl p-6 w-full max-w-lg mx-4 max-h-[70vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-sm font-semibold text-zinc-500 dark:text-zinc-400 mb-3">Feedback</h3>
+            <p className="text-base leading-relaxed text-zinc-800 dark:text-zinc-100 whitespace-pre-wrap">
+              {viewingFeedback}
+            </p>
+            <div className="flex justify-end mt-4">
+              <button
+                onClick={() => setViewingFeedback(null)}
+                className="px-4 py-1.5 text-sm text-zinc-600 dark:text-zinc-300 hover:text-zinc-800 dark:hover:text-zinc-100 rounded"
+              >
+                Close
               </button>
             </div>
           </div>
