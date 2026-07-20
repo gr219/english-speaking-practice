@@ -6,10 +6,10 @@ import { useAdmin } from '../hooks/useAdmin';
 import { useUserId } from '../hooks/useUserId';
 import CreateQuestionModal from './CreateQuestionModal';
 
-type SortColumn = 'text' | 'class_label' | 'submission_count' | 'reviewed' | 'created_at' | 'time_limit_secs';
+type SortColumn = 'text' | 'class_label' | 'submission_count' | 'reviewed' | 'created_at' | 'time_limit_secs' | 'question_type';
 type SortDirection = 'asc' | 'desc';
 
-type FilterKey = 'class_label' | 'reviewed_status';
+type FilterKey = 'class_label' | 'reviewed_status' | 'question_type';
 type Filters = Partial<Record<FilterKey, string>>;
 
 interface FilterDropdownProps {
@@ -119,6 +119,11 @@ export default function HomeworkPage() {
     return questions.filter((q) => {
       if (filters.class_label && q.class_label !== filters.class_label) return false;
       if (filters.reviewed_status && getReviewedStatus(q) !== filters.reviewed_status) return false;
+      if (filters.question_type) {
+        const qType = q.question_type || 'speaking';
+        const filterType = filters.question_type.toLowerCase();
+        if (qType !== filterType) return false;
+      }
       return true;
     });
   }, [questions, filters]);
@@ -146,6 +151,9 @@ export default function HomeworkPage() {
           break;
         case 'time_limit_secs':
           cmp = a.time_limit_secs - b.time_limit_secs;
+          break;
+        case 'question_type':
+          cmp = (a.question_type || 'speaking').localeCompare(b.question_type || 'speaking');
           break;
       }
       return sortDirection === 'asc' ? cmp : -cmp;
@@ -282,6 +290,12 @@ export default function HomeworkPage() {
                   <button onClick={() => setFilter('reviewed_status', undefined)} className="hover:text-indigo-900 dark:hover:text-indigo-100">×</button>
                 </span>
               )}
+              {filters.question_type && (
+                <span className="inline-flex items-center gap-1 text-xs px-2 py-1 bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 rounded-full">
+                  Type: {filters.question_type}
+                  <button onClick={() => setFilter('question_type', undefined)} className="hover:text-indigo-900 dark:hover:text-indigo-100">×</button>
+                </span>
+              )}
             </div>
           )}
 
@@ -326,6 +340,22 @@ export default function HomeworkPage() {
                       </button>
                       <FilterDropdown filterKey="class_label" options={classLabels} openFilter={openFilter} filters={filters} setFilter={setFilter} />
                     </th>
+                    <th className="px-4 py-3 text-center text-xs font-semibold text-zinc-600 dark:text-zinc-300 select-none relative">
+                      <span
+                        className="cursor-pointer hover:text-zinc-900 dark:hover:text-zinc-100"
+                        onClick={() => handleSort('question_type')}
+                      >
+                        Type {sortIndicator('question_type')}
+                      </span>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); toggleFilter('question_type'); }}
+                        className={`ml-1 text-[10px] ${filters.question_type ? 'text-indigo-500' : 'text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200'}`}
+                        title="Filter by type"
+                      >
+                        🔽
+                      </button>
+                      <FilterDropdown filterKey="question_type" options={['Speaking', 'Writing']} openFilter={openFilter} filters={filters} setFilter={setFilter} />
+                    </th>
                     <th
                       className="px-4 py-3 text-center text-xs font-semibold text-zinc-600 dark:text-zinc-300 cursor-pointer hover:text-zinc-900 dark:hover:text-zinc-100 select-none"
                       onClick={() => handleSort('submission_count')}
@@ -358,7 +388,7 @@ export default function HomeworkPage() {
                       className="px-4 py-3 text-center text-xs font-semibold text-zinc-600 dark:text-zinc-300 cursor-pointer hover:text-zinc-900 dark:hover:text-zinc-100 select-none"
                       onClick={() => handleSort('time_limit_secs')}
                     >
-                      Time Limit {sortIndicator('time_limit_secs')}
+                      Limit {sortIndicator('time_limit_secs')}
                     </th>
                   </tr>
                 </thead>
@@ -395,6 +425,15 @@ export default function HomeworkPage() {
                             </span>
                           )}
                         </td>
+                        <td className="px-4 py-3 text-center">
+                          <span className={`text-xs px-2 py-0.5 rounded-full ${
+                            (q.question_type || 'speaking') === 'writing'
+                              ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300'
+                              : 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'
+                          }`}>
+                            {(q.question_type || 'speaking') === 'writing' ? '✍️ Writing' : '🎤 Speaking'}
+                          </span>
+                        </td>
                         <td className="px-4 py-3 text-center text-indigo-500 dark:text-indigo-400 font-medium">
                           {q.submission_count}
                         </td>
@@ -415,7 +454,7 @@ export default function HomeworkPage() {
                           {formatRelativeTime(q.created_at)}
                         </td>
                         <td className="px-4 py-3 text-center text-xs text-zinc-600 dark:text-zinc-300">
-                          {q.time_limit_secs}s
+                          {(q.question_type || 'speaking') === 'writing' ? `${q.time_limit_secs} words` : `${q.time_limit_secs}s`}
                         </td>
                       </tr>
                     );

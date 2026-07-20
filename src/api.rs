@@ -452,6 +452,7 @@ pub struct CreateQuestionRequest {
     pub text: String,
     pub time_limit_secs: i32,
     pub class_label: Option<String>,
+    pub question_type: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -468,7 +469,7 @@ async fn create_question_handler(
     info!(creator_id = %creator_id, text_len = req.text.len(), time_limit = req.time_limit_secs, "Creating question");
     let id = state
         .db
-        .insert_question(&creator_id, &req.text, req.time_limit_secs, req.class_label.as_deref())
+        .insert_question(&creator_id, &req.text, req.time_limit_secs, req.class_label.as_deref(), req.question_type.as_deref())
         .map_err(|e| {
             error!(creator_id = %creator_id, error = %e, "Failed to insert question");
             StatusCode::INTERNAL_SERVER_ERROR
@@ -680,6 +681,7 @@ pub struct BatchQuestionItem {
     pub text: String,
     pub time_limit_secs: i32,
     pub class_label: Option<String>,
+    pub question_type: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -693,7 +695,7 @@ async fn create_questions_batch_handler(
     Json(req): Json<Vec<BatchQuestionItem>>,
 ) -> Result<impl IntoResponse, StatusCode> {
     let creator_id = extract_user_id(&headers).unwrap_or_default();
-    let questions: Vec<(String, i32, Option<String>)> = req.into_iter().map(|q| (q.text, q.time_limit_secs, q.class_label)).collect();
+    let questions: Vec<(String, i32, Option<String>, Option<String>)> = req.into_iter().map(|q| (q.text, q.time_limit_secs, q.class_label, q.question_type)).collect();
     let ids = state
         .db
         .insert_questions_batch(&creator_id, &questions)

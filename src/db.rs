@@ -66,6 +66,7 @@ pub struct Question {
     pub text: String,
     pub time_limit_secs: i32,
     pub created_at: String,
+    pub question_type: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -87,6 +88,7 @@ pub struct QuestionSummary {
     pub submission_count: i32,
     pub feedback_count: i32,
     pub class_label: Option<String>,
+    pub question_type: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -109,6 +111,7 @@ pub struct QuestionWithCreator {
     pub submission_count: i32,
     pub feedback_count: i32,
     pub class_label: Option<String>,
+    pub question_type: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -205,6 +208,14 @@ impl Database {
             .is_ok();
         if !has_class_label {
             conn.execute_batch("ALTER TABLE questions ADD COLUMN class_label TEXT;")?;
+        }
+
+        // Migrate: add question_type column if missing
+        let has_question_type: bool = conn
+            .prepare("SELECT question_type FROM questions LIMIT 0")
+            .is_ok();
+        if !has_question_type {
+            conn.execute_batch("ALTER TABLE questions ADD COLUMN question_type TEXT DEFAULT 'speaking';")?;
         }
 
         // Create admin_password table
@@ -355,13 +366,13 @@ impl Database {
         rows.collect()
     }
 
-    pub fn insert_question(&self, creator_id: &str, text: &str, time_limit_secs: i32, class_label: Option<&str>) -> Result<String> {
+    pub fn insert_question(&self, creator_id: &str, text: &str, time_limit_secs: i32, class_label: Option<&str>, question_type: Option<&str>) -> Result<String> {
         let id = uuid::Uuid::new_v4().to_string();
         let conn = self.conn.lock().unwrap();
         conn.execute(
-            "INSERT INTO questions (id, creator_id, text, time_limit_secs, class_label)
-             VALUES (?1, ?2, ?3, ?4, ?5)",
-            params![id, creator_id, text, time_limit_secs, class_label],
+            "INSERT INTO questions (id, creator_id, text, time_limit_secs, class_label, question_type)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            params![id, creator_id, text, time_limit_secs, class_label, question_type.unwrap_or("speaking")],
         )?;
         Ok(id)
     }
@@ -369,7 +380,7 @@ impl Database {
     pub fn get_question(&self, id: &str) -> Result<Option<Question>> {
         let conn = self.conn.lock().unwrap();
         let mut stmt = conn.prepare(
-            "SELECT id, creator_id, text, time_limit_secs, created_at
+            "SELECT id, creator_id, text, time_limit_secs, created_at, question_type
              FROM questions WHERE id = ?1",
         )?;
         let mut rows = stmt.query_map(params![id], |row| {
@@ -379,6 +390,7 @@ impl Database {
                 text: row.get(2)?,
                 time_limit_secs: row.get(3)?,
                 created_at: row.get(4)?,
+                question_type: row.get(5)?,
             })
         })?;
         match rows.next() {
@@ -422,7 +434,7 @@ impl Database {
             "SELECT q.id, q.text, q.time_limit_secs, q.created_at,
                     (SELECT COUNT(*) FROM recordings r WHERE r.question_id = q.id AND r.submitted = 1) as submission_count,
                     (SELECT COUNT(DISTINCT r2.id) FROM recordings r2 JOIN feedbacks f ON f.recording_id = r2.id WHERE r2.question_id = q.id AND r2.submitted = 1) as feedback_count,
-                    q.class_label
+                    q.class_label, q.question_type
              FROM questions q
              WHERE q.creator_id = ?1 AND q.class_label IS NULL
              ORDER BY q.created_at DESC",
@@ -436,6 +448,7 @@ impl Database {
                 submission_count: row.get(4)?,
                 feedback_count: row.get(5)?,
                 class_label: row.get(6)?,
+                question_type: row.get(7)?,
             })
         })?;
         rows.collect()
@@ -459,7 +472,7 @@ impl Database {
             "SELECT q.id, q.creator_id, q.text, q.time_limit_secs, q.created_at,
                     (SELECT COUNT(*) FROM recordings r WHERE r.question_id = q.id AND r.submitted = 1) as submission_count,
                     (SELECT COUNT(DISTINCT r2.id) FROM recordings r2 JOIN feedbacks f ON f.recording_id = r2.id WHERE r2.question_id = q.id AND r2.submitted = 1) as feedback_count,
-                    q.class_label
+                    q.class_label, q.question_type
              FROM questions q
              WHERE q.class_label IS NULL
              ORDER BY q.created_at DESC",
@@ -474,6 +487,7 @@ impl Database {
                 submission_count: row.get(5)?,
                 feedback_count: row.get(6)?,
                 class_label: row.get(7)?,
+                question_type: row.get(8)?,
             })
         })?;
         rows.collect()
@@ -486,7 +500,7 @@ impl Database {
                 "SELECT q.id, q.text, q.time_limit_secs, q.created_at,
                         (SELECT COUNT(*) FROM recordings r WHERE r.question_id = q.id AND r.submitted = 1) as submission_count,
                         (SELECT COUNT(DISTINCT r2.id) FROM recordings r2 JOIN feedbacks f ON f.recording_id = r2.id WHERE r2.question_id = q.id AND r2.submitted = 1) as feedback_count,
-                        q.class_label
+                        q.class_label, q.question_type
                  FROM questions q
                  WHERE q.creator_id = ?1 AND q.class_label = ?2
                  ORDER BY q.created_at DESC".to_string(),
@@ -496,7 +510,7 @@ impl Database {
                 "SELECT q.id, q.text, q.time_limit_secs, q.created_at,
                         (SELECT COUNT(*) FROM recordings r WHERE r.question_id = q.id AND r.submitted = 1) as submission_count,
                         (SELECT COUNT(DISTINCT r2.id) FROM recordings r2 JOIN feedbacks f ON f.recording_id = r2.id WHERE r2.question_id = q.id AND r2.submitted = 1) as feedback_count,
-                        q.class_label
+                        q.class_label, q.question_type
                  FROM questions q
                  WHERE q.creator_id = ?1 AND q.class_label IS NOT NULL
                  ORDER BY q.created_at DESC".to_string(),
@@ -514,6 +528,7 @@ impl Database {
                 submission_count: row.get(4)?,
                 feedback_count: row.get(5)?,
                 class_label: row.get(6)?,
+                question_type: row.get(7)?,
             })
         })?;
         rows.collect()
@@ -526,7 +541,7 @@ impl Database {
                 "SELECT q.id, q.creator_id, q.text, q.time_limit_secs, q.created_at,
                         (SELECT COUNT(*) FROM recordings r WHERE r.question_id = q.id AND r.submitted = 1) as submission_count,
                         (SELECT COUNT(DISTINCT r2.id) FROM recordings r2 JOIN feedbacks f ON f.recording_id = r2.id WHERE r2.question_id = q.id AND r2.submitted = 1) as feedback_count,
-                        q.class_label
+                        q.class_label, q.question_type
                  FROM questions q
                  WHERE q.class_label = ?1
                  ORDER BY q.created_at DESC".to_string(),
@@ -536,7 +551,7 @@ impl Database {
                 "SELECT q.id, q.creator_id, q.text, q.time_limit_secs, q.created_at,
                         (SELECT COUNT(*) FROM recordings r WHERE r.question_id = q.id AND r.submitted = 1) as submission_count,
                         (SELECT COUNT(DISTINCT r2.id) FROM recordings r2 JOIN feedbacks f ON f.recording_id = r2.id WHERE r2.question_id = q.id AND r2.submitted = 1) as feedback_count,
-                        q.class_label
+                        q.class_label, q.question_type
                  FROM questions q
                  WHERE q.class_label IS NOT NULL
                  ORDER BY q.created_at DESC".to_string(),
@@ -555,6 +570,7 @@ impl Database {
                 submission_count: row.get(5)?,
                 feedback_count: row.get(6)?,
                 class_label: row.get(7)?,
+                question_type: row.get(8)?,
             })
         })?;
         rows.collect()
@@ -600,15 +616,16 @@ impl Database {
 
     // --- Batch question creation ---
 
-    pub fn insert_questions_batch(&self, creator_id: &str, questions: &[(String, i32, Option<String>)]) -> Result<Vec<String>> {
+    pub fn insert_questions_batch(&self, creator_id: &str, questions: &[(String, i32, Option<String>, Option<String>)]) -> Result<Vec<String>> {
         let conn = self.conn.lock().unwrap();
         let mut ids = Vec::new();
-        for (text, time_limit_secs, class_label) in questions {
+        for (text, time_limit_secs, class_label, question_type) in questions {
             let id = uuid::Uuid::new_v4().to_string();
+            let qtype = question_type.as_deref().unwrap_or("speaking");
             conn.execute(
-                "INSERT INTO questions (id, creator_id, text, time_limit_secs, class_label)
-                 VALUES (?1, ?2, ?3, ?4, ?5)",
-                params![id, creator_id, text, time_limit_secs, class_label],
+                "INSERT INTO questions (id, creator_id, text, time_limit_secs, class_label, question_type)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+                params![id, creator_id, text, time_limit_secs, class_label, qtype],
             )?;
             ids.push(id);
         }

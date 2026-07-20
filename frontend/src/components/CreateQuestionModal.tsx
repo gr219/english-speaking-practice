@@ -11,6 +11,7 @@ interface QuestionInput {
   text: string;
   timeLimitSecs: number;
   classLabel: string;
+  questionType: 'speaking' | 'writing';
 }
 
 export default function CreateQuestionModal({ onClose, requireClass }: CreateQuestionModalProps) {
@@ -24,6 +25,7 @@ export default function CreateQuestionModal({ onClose, requireClass }: CreateQue
   const [includeStudentLink, setIncludeStudentLink] = useState(true);
   const [includeResultsLink, setIncludeResultsLink] = useState(true);
   const [classLabel, setClassLabel] = useState('');
+  const [questionType, setQuestionType] = useState<'speaking' | 'writing'>('speaking');
 
   const handleNumChange = (value: string) => {
     const num = parseInt(value);
@@ -35,7 +37,7 @@ export default function CreateQuestionModal({ onClose, requireClass }: CreateQue
     if (num < 1 || num > 20) return;
     setNumQuestions(num);
     setQuestions(
-      Array.from({ length: num }, (_, i) => questions[i] || { text: '', timeLimitSecs: 120, classLabel: classLabel })
+      Array.from({ length: num }, (_, i) => questions[i] || { text: '', timeLimitSecs: questionType === 'speaking' ? 120 : 200, classLabel: classLabel, questionType: questionType })
     );
   };
 
@@ -53,9 +55,16 @@ export default function CreateQuestionModal({ onClose, requireClass }: CreateQue
       return;
     }
     for (const q of validQuestions) {
-      if (q.timeLimitSecs < 10 || q.timeLimitSecs > 600) {
-        setError('Time limit must be between 10 and 600 seconds');
-        return;
+      if (questionType === 'speaking') {
+        if (q.timeLimitSecs < 10 || q.timeLimitSecs > 600) {
+          setError('Time limit must be between 10 and 600 seconds');
+          return;
+        }
+      } else {
+        if (q.timeLimitSecs < 1) {
+          setError('Words limit must be at least 1');
+          return;
+        }
       }
     }
     if (requireClass && !classLabel.trim()) {
@@ -69,6 +78,7 @@ export default function CreateQuestionModal({ onClose, requireClass }: CreateQue
         text: q.text.trim(),
         time_limit_secs: q.timeLimitSecs,
         class_label: requireClass ? (classLabel.trim() || null) : null,
+        question_type: questionType,
       }));
       const result = await api.createQuestionsBatch(payload, userId);
       setCreatedIds(result.ids);
@@ -260,6 +270,36 @@ export default function CreateQuestionModal({ onClose, requireClass }: CreateQue
           </div>
         )}
 
+        <div>
+          <label className="text-sm text-zinc-600 dark:text-zinc-400 block mb-2">
+            Question Type:
+          </label>
+          <div className="flex gap-4">
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="radio"
+                name="questionType"
+                value="speaking"
+                checked={questionType === 'speaking'}
+                onChange={() => setQuestionType('speaking')}
+                className="w-4 h-4 text-blue-500 border-gray-300 dark:border-zinc-600 focus:ring-blue-300"
+              />
+              <span className="text-sm text-zinc-700 dark:text-zinc-300">🎤 Speaking</span>
+            </label>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="radio"
+                name="questionType"
+                value="writing"
+                checked={questionType === 'writing'}
+                onChange={() => setQuestionType('writing')}
+                className="w-4 h-4 text-blue-500 border-gray-300 dark:border-zinc-600 focus:ring-blue-300"
+              />
+              <span className="text-sm text-zinc-700 dark:text-zinc-300">✍️ Writing</span>
+            </label>
+          </div>
+        </div>
+
         {questions.length > 0 && (
           <div className="space-y-4 max-h-96 overflow-y-auto pr-1">
             {questions.map((q, i) => (
@@ -282,14 +322,15 @@ export default function CreateQuestionModal({ onClose, requireClass }: CreateQue
                   </div>
                   <div>
                     <label className="text-xs text-zinc-500 dark:text-zinc-400 block mb-1">
-                      Time Limit (seconds):
+                      {questionType === 'writing' ? 'Words Limit:' : 'Time Limit (seconds):'}
                     </label>
                     <input
                       type="number"
                       value={q.timeLimitSecs}
-                      onChange={(e) => updateQuestion(i, 'timeLimitSecs', parseInt(e.target.value) || 120)}
-                      min={10}
-                      max={600}
+                      onChange={(e) => updateQuestion(i, 'timeLimitSecs', parseInt(e.target.value) || (questionType === 'speaking' ? 120 : 200))}
+                      min={questionType === 'speaking' ? 10 : 1}
+                      max={questionType === 'speaking' ? 600 : undefined}
+                      placeholder={questionType === 'writing' ? 'e.g., 200' : undefined}
                       className="w-full px-3 py-2 border border-gray-200 dark:border-zinc-600 rounded text-sm text-zinc-800 dark:text-zinc-200 bg-white dark:bg-zinc-700 focus:outline-none focus:ring-2 focus:ring-blue-300 dark:focus:ring-blue-600 focus:border-transparent"
                     />
                   </div>

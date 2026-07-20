@@ -75,6 +75,7 @@ export interface Question {
   text: string;
   time_limit_secs: number;
   created_at: string;
+  question_type: string | null;
 }
 
 export interface SubmissionEntry {
@@ -258,7 +259,7 @@ const api = {
   },
 
   // Batch question creation
-  async createQuestionsBatch(questions: { text: string; time_limit_secs: number; class_label?: string | null }[], userId: string): Promise<{ ids: string[] }> {
+  async createQuestionsBatch(questions: { text: string; time_limit_secs: number; class_label?: string | null; question_type?: string | null }[], userId: string): Promise<{ ids: string[] }> {
     const res = await fetch('/api/questions/batch', {
       method: 'POST',
       headers: {
@@ -349,6 +350,7 @@ export interface QuestionSummary {
   submission_count: number;
   feedback_count: number;
   class_label: string | null;
+  question_type: string | null;
 }
 
 export interface QuestionWithCreator {
@@ -360,6 +362,7 @@ export interface QuestionWithCreator {
   submission_count: number;
   feedback_count: number;
   class_label: string | null;
+  question_type: string | null;
 }
 
 export interface Feedback {
