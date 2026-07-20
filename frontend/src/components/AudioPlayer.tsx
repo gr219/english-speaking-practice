@@ -6,6 +6,8 @@ interface AudioPlayerProps {
   onEnded?: () => void;
 }
 
+const SPEED_OPTIONS = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2.0];
+
 function formatTime(seconds: number): string {
   if (!isFinite(seconds)) return '0:00';
   const m = Math.floor(seconds / 60);
@@ -20,6 +22,7 @@ export default function AudioPlayer({ src, autoPlay, onEnded }: AudioPlayerProps
   const [playing, setPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
+  const [playbackRate, setPlaybackRate] = useState(1);
   const [, forceRender] = useState(0);
 
   const progress = duration > 0 ? (currentTime / duration) * 100 : 0;
@@ -89,21 +92,27 @@ export default function AudioPlayer({ src, autoPlay, onEnded }: AudioPlayerProps
     else audio.play();
   };
 
+  const handleSpeedChange = (speed: number) => {
+    setPlaybackRate(speed);
+    const audio = audioRef.current;
+    if (audio) audio.playbackRate = speed;
+  };
+
   return (
-    <div className="flex items-center gap-3 w-full py-2">
+    <div className="flex items-center gap-2 w-full py-2">
       <audio ref={audioRef} src={src} autoPlay={autoPlay} preload="auto" />
       <button
         onClick={togglePlay}
-        className="shrink-0 w-8 h-8 flex items-center justify-center rounded-full bg-blue-500 hover:bg-blue-600 text-white text-sm"
+        className="shrink-0 w-7 h-7 flex items-center justify-center rounded-full bg-blue-500 hover:bg-blue-600 text-white text-xs"
       >
         {playing ? '⏸' : '▶'}
       </button>
-      <span className="text-xs text-zinc-500 dark:text-zinc-400 w-10 text-right tabular-nums shrink-0">
+      <span className="text-[10px] text-zinc-500 dark:text-zinc-400 w-8 text-right tabular-nums shrink-0">
         {formatTime(currentTime)}
       </span>
       <div
         ref={progressRef}
-        className="flex-1 h-3 bg-gray-200 dark:bg-zinc-600 rounded-full cursor-pointer relative select-none touch-none"
+        className="flex-1 h-2.5 bg-gray-200 dark:bg-zinc-600 rounded-full cursor-pointer relative select-none touch-none min-w-[60px]"
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
@@ -113,13 +122,25 @@ export default function AudioPlayer({ src, autoPlay, onEnded }: AudioPlayerProps
           style={{ width: `${progress}%` }}
         />
         <div
-          className="absolute top-1/2 -translate-y-1/2 w-4 h-4 bg-blue-500 rounded-full shadow pointer-events-none"
-          style={{ left: `calc(${progress}% - 8px)` }}
+          className="absolute top-1/2 -translate-y-1/2 w-3 h-3 bg-blue-500 rounded-full shadow pointer-events-none"
+          style={{ left: `calc(${progress}% - 6px)` }}
         />
       </div>
-      <span className="text-xs text-zinc-500 dark:text-zinc-400 w-10 tabular-nums shrink-0">
+      <span className="text-[10px] text-zinc-500 dark:text-zinc-400 w-8 tabular-nums shrink-0">
         {formatTime(duration)}
       </span>
+      <select
+        value={playbackRate}
+        onChange={(e) => handleSpeedChange(parseFloat(e.target.value))}
+        className="shrink-0 px-1 py-0.5 text-[10px] border border-gray-200 dark:border-zinc-600 rounded bg-white dark:bg-zinc-700 text-zinc-700 dark:text-zinc-300 focus:outline-none focus:ring-1 focus:ring-blue-300 cursor-pointer"
+        title="Playback speed"
+      >
+        {SPEED_OPTIONS.map((speed) => (
+          <option key={speed} value={speed}>
+            {speed}x
+          </option>
+        ))}
+      </select>
     </div>
   );
 }

@@ -170,7 +170,7 @@ export default function QuestionResultsView() {
     <div className="min-h-screen bg-white dark:bg-zinc-900">
       <Banner />
       <div className="p-8">
-      <div className="max-w-4xl mx-auto">
+      <div className="max-w-6xl mx-auto">
         <div className="bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 rounded-lg p-6 mb-6">
           <h1 className="text-2xl font-semibold text-zinc-900 dark:text-zinc-100 mb-2">
             Question Submissions
@@ -228,17 +228,17 @@ export default function QuestionResultsView() {
                   <th className="px-4 py-3 text-left text-xs font-semibold text-zinc-600 dark:text-zinc-300 uppercase tracking-wider">
                     Name
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-zinc-600 dark:text-zinc-300 uppercase tracking-wider">
-                    Pronunciation
+                  <th className="px-2 py-3 text-left text-xs font-semibold text-zinc-600 dark:text-zinc-300 uppercase tracking-wider w-16">
+                    Pron.
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-zinc-600 dark:text-zinc-300 uppercase tracking-wider">
+                  <th className="px-2 py-3 text-left text-xs font-semibold text-zinc-600 dark:text-zinc-300 uppercase tracking-wider w-16">
                     Fluency
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-zinc-600 dark:text-zinc-300 uppercase tracking-wider">
+                  <th className="px-2 py-3 text-left text-xs font-semibold text-zinc-600 dark:text-zinc-300 uppercase tracking-wider w-20">
                     Time
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-zinc-600 dark:text-zinc-300 uppercase tracking-wider">
-                    Actions
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-zinc-600 dark:text-zinc-300 uppercase tracking-wider min-w-[220px]">
+                    Audio & Actions
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-zinc-600 dark:text-zinc-300 uppercase tracking-wider">
                     Feedback
@@ -259,30 +259,31 @@ export default function QuestionResultsView() {
                       </td>
                     )}
                     <td
-                      className="px-4 py-3 text-sm text-zinc-800 dark:text-zinc-200 cursor-pointer hover:text-blue-600 dark:hover:text-blue-400"
+                      className="px-4 py-3 text-sm text-zinc-800 dark:text-zinc-200 cursor-pointer hover:text-blue-600 dark:hover:text-blue-400 max-w-[100px] truncate"
                       onClick={() => navigate(`/share/${sub.id}`)}
+                      title={sub.speaker_name || 'Anonymous'}
                     >
                       {sub.speaker_name || 'Anonymous'}
                     </td>
-                    <td className="px-4 py-3 text-sm">
+                    <td className="px-2 py-3 text-sm w-16" title={`${sub.score.toFixed(1)}%`}>
                       <span className="font-semibold text-blue-600 dark:text-blue-400">
-                        {sub.score.toFixed(1)}%
+                        {sub.score.toFixed(0)}%
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-sm">
+                    <td className="px-2 py-3 text-sm w-16">
                       {sub.fluency_score !== null ? (
-                        <span className="font-semibold text-green-600 dark:text-green-400">
-                          {sub.fluency_score.toFixed(1)}%
+                        <span className="font-semibold text-green-600 dark:text-green-400" title={`${sub.fluency_score.toFixed(1)}%`}>
+                          {sub.fluency_score.toFixed(0)}%
                         </span>
                       ) : (
                         <span className="text-zinc-400">-</span>
                       )}
                     </td>
-                    <td className="px-4 py-3 text-xs text-zinc-500 dark:text-zinc-400">
-                      {formatDate(sub.created_at)}
+                    <td className="px-2 py-3 text-[11px] text-zinc-500 dark:text-zinc-400 w-20 truncate" title={formatDate(sub.created_at)}>
+                      {new Date(sub.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
                     </td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-2">
+                    <td className="px-4 py-3 min-w-[220px]">
+                      <div className="flex items-center gap-1">
                         <button
                           onClick={() => handlePlayAudio(sub.id)}
                           className="text-blue-500 hover:text-blue-600 dark:text-blue-400 dark:hover:text-blue-300 text-xs"
@@ -300,7 +301,7 @@ export default function QuestionResultsView() {
                         )}
                       </div>
                       {playingId === sub.id && (
-                        <div className="mt-2">
+                        <div className="mt-1">
                           <AudioPlayer
                             src={api.getAudioUrl(sub.id)}
                             autoPlay
