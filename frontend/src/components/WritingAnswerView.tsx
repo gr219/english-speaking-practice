@@ -65,7 +65,7 @@ export default function WritingAnswerView({ question }: WritingAnswerViewProps) 
       setIssues(grammarIssues);
       setHasChecked(true);
     } catch (err) {
-      setError('Failed to check grammar. Please try again.');
+      setError('Failed to check typos. Please try again.');
       console.error('Harper lint error:', err);
     } finally {
       setIsChecking(false);
@@ -238,7 +238,7 @@ export default function WritingAnswerView({ question }: WritingAnswerViewProps) 
 
         {hasChecked && issues.length === 0 && (
           <div className="mb-4 p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg text-sm text-green-700 dark:text-green-300">
-            ✅ No grammar issues found!
+            ✅ No issues found!
           </div>
         )}
 
@@ -254,7 +254,7 @@ export default function WritingAnswerView({ question }: WritingAnswerViewProps) 
             disabled={isChecking || !answer.trim() || isSubmitting}
             className="flex-1 px-4 py-2 text-sm bg-amber-500 text-white rounded hover:bg-amber-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {isChecking ? '🔍 Checking...' : '🔍 Check Grammar'}
+            {isChecking ? '🔍 Checking...' : '🔍 Check Typos'}
           </button>
           <button
             onClick={handleSubmit}
