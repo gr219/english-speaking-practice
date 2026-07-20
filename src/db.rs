@@ -632,6 +632,19 @@ impl Database {
         Ok(ids)
     }
 
+    // --- Writing submission ---
+
+    pub fn insert_writing_submission(&self, user_id: &str, question_id: &str, text: &str, speaker_name: &str) -> Result<String> {
+        let id = uuid::Uuid::new_v4().to_string();
+        let conn = self.conn.lock().unwrap();
+        conn.execute(
+            "INSERT INTO recordings (id, user_id, text, score, words_json, speaker_name, audio_path, question_id, submitted)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+            params![id, user_id, text, 0.0f64, "[]", speaker_name, "", question_id, 1],
+        )?;
+        Ok(id)
+    }
+
     // --- Feedback methods ---
 
     pub fn insert_feedback(&self, recording_id: &str, question_id: &str, feedback_text: &str, created_by: &str) -> Result<String> {

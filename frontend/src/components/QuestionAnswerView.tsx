@@ -10,6 +10,7 @@ import GrammarDisplay from './GrammarDisplay';
 import Banner from './Banner';
 import AudioPlayer from './AudioPlayer';
 import MicPermissionAlert from './MicPermissionAlert';
+import WritingAnswerView from './WritingAnswerView';
 
 export default function QuestionAnswerView() {
   const { id } = useParams<{ id: string }>();
@@ -131,6 +132,18 @@ export default function QuestionAnswerView() {
             <p className="text-red-600 dark:text-red-400 mb-4">{error || 'Question not found'}</p>
             <a href="/" className="text-blue-500 hover:underline">Go home</a>
           </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Writing questions use a different view
+  if (question.question_type === 'writing') {
+    return (
+      <div className="min-h-screen bg-white dark:bg-zinc-900">
+        <Banner />
+        <div className="p-8">
+          <WritingAnswerView question={question} />
         </div>
       </div>
     );

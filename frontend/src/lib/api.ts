@@ -323,6 +323,22 @@ const api = {
     return res.json();
   },
 
+  async submitWritingAnswer(questionId: string, text: string, speakerName: string, userId: string): Promise<{ id: string }> {
+    const res = await fetch(`/api/questions/${questionId}/writing`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-User-Id': userId,
+      },
+      body: JSON.stringify({ text, speaker_name: speakerName }),
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(() => null);
+      throw new Error(body?.error || 'Failed to submit writing answer');
+    }
+    return res.json();
+  },
+
   async adminListHomework(adminToken: string, classLabel?: string): Promise<QuestionWithCreator[]> {
     const params = new URLSearchParams();
     if (classLabel) params.set('class_label', classLabel);

@@ -703,6 +703,48 @@ async fn create_questions_batch_handler(
     Ok(Json(BatchQuestionResponse { ids }))
 }
 
+#[derive(Deserialize)]
+pub struct SubmitWritingRequest {
+    pub text: String,
+    pub speaker_name: String,
+}
+
+#[derive(Serialize)]
+pub struct SubmitWritingResponse {
+    pub id: String,
+}
+
+async fn submit_writing_answer_handler(
+    state: State<ServerState>,
+    headers: HeaderMap,
+    Path(question_id): Path<String>,
+    Json(req): Json<SubmitWritingRequest>,
+) -> Result<impl IntoResponse, (StatusCode, Json<ErrorResponse>)> {
+    let user_id = extract_user_id(&headers).ok_or_else(|| (StatusCode::UNAUTHORIZED, Json(ErrorResponse {
+        error: "User ID is required.".to_string(),
+    })))?;
+
+    // Verify question exists
+    let _question = state.db.get_question(&question_id)
+        .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorResponse {
+            error: "Failed to look up question.".to_string(),
+        })))?
+        .ok_or_else(|| (StatusCode::NOT_FOUND, Json(ErrorResponse {
+            error: "Question not found.".to_string(),
+        })))?;
+
+    let id = state.db.insert_writing_submission(&user_id, &question_id, &req.text, &req.speaker_name)
+        .map_err(|e| {
+            error!(user_id = %user_id, question_id = %question_id, error = %e, "Failed to insert writing submission");
+            (StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorResponse {
+                error: "Failed to submit writing answer.".to_string(),
+            }))
+        })?;
+
+    info!(user_id = %user_id, question_id = %question_id, submission_id = %id, "Writing answer submitted");
+    Ok(Json(SubmitWritingResponse { id }))
+}
+
 async fn submit_recording_handler(
     state: State<ServerState>,
     headers: HeaderMap,
@@ -821,6 +863,7 @@ pub fn router() -> Router<ServerState, Body> {
         .route("/questions/:id", get(get_question_handler))
         .route("/questions/:id", delete(delete_question_by_creator_handler))
         .route("/questions/:id/submissions", get(get_question_submissions_handler))
+        .route("/questions/:id/writing", post(submit_writing_answer_handler))
         .route("/homework", get(list_homework_handler))
         .route("/admin/homework", get(admin_list_homework_handler))
         .route("/admin/verify", post(admin_verify_handler))
