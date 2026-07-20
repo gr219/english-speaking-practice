@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import api, { Question } from '../lib/api';
 import { useUserId } from '../hooks/useUserId';
-import Banner from './Banner';
 
 interface GrammarIssue {
   message: string;
@@ -107,29 +106,24 @@ export default function WritingAnswerView({ question }: WritingAnswerViewProps) 
 
   if (hasSubmitted) {
     return (
-      <div className="min-h-screen bg-white dark:bg-zinc-900">
-        <Banner />
-        <div className="p-8">
-          <div className="max-w-2xl mx-auto">
-            <div className="bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 rounded-lg p-6 mb-6">
-              <div className="text-sm text-zinc-600 dark:text-zinc-400 mb-2">Question:</div>
-              <div className="text-lg text-zinc-800 dark:text-zinc-200 italic">"{question.text}"</div>
-            </div>
-            <div className="bg-white dark:bg-zinc-800 border border-gray-200 dark:border-zinc-600 rounded-lg p-6">
-              <h2 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100 mb-4">✅ Submitted!</h2>
-              <div className="text-sm text-zinc-600 dark:text-zinc-400 mb-4">Your writing answer has been submitted successfully.</div>
-              <div className="bg-gray-50 dark:bg-zinc-700 rounded-lg p-4 mb-4">
-                <div className="text-xs uppercase text-zinc-400 tracking-wide mb-2">Your answer ({wordCount} words)</div>
-                <div className="text-sm text-zinc-800 dark:text-zinc-200 whitespace-pre-wrap">{answer}</div>
-              </div>
-              <a
-                href={`/q/${question.id}/results`}
-                className="block w-full px-4 py-3 text-center text-sm font-medium bg-indigo-500 text-white rounded-lg hover:bg-indigo-600 transition-colors"
-              >
-                📋 View All Submissions & Teacher Feedback
-              </a>
-            </div>
+      <div className="max-w-2xl mx-auto">
+        <div className="bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 rounded-lg p-6 mb-6">
+          <div className="text-sm text-zinc-600 dark:text-zinc-400 mb-2">Question:</div>
+          <div className="text-lg text-zinc-800 dark:text-zinc-200 italic">"{question.text}"</div>
+        </div>
+        <div className="bg-white dark:bg-zinc-800 border border-gray-200 dark:border-zinc-600 rounded-lg p-6">
+          <h2 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100 mb-4">✅ Submitted!</h2>
+          <div className="text-sm text-zinc-600 dark:text-zinc-400 mb-4">Your writing answer has been submitted successfully.</div>
+          <div className="bg-gray-50 dark:bg-zinc-700 rounded-lg p-4 mb-4">
+            <div className="text-xs uppercase text-zinc-400 tracking-wide mb-2">Your answer ({wordCount} words)</div>
+            <div className="text-sm text-zinc-800 dark:text-zinc-200 whitespace-pre-wrap">{answer}</div>
           </div>
+          <a
+            href={`/q/${question.id}/results`}
+            className="block w-full px-4 py-3 text-center text-sm font-medium bg-indigo-500 text-white rounded-lg hover:bg-indigo-600 transition-colors"
+          >
+            📋 View All Submissions & Teacher Feedback
+          </a>
         </div>
       </div>
     );
