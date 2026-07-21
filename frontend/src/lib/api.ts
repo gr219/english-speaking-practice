@@ -57,8 +57,10 @@ export interface RecordingDetail {
   grammar_json: string | null;
   ielts_band: number | null;
   example_text: string | null;
+  speaker_name: string | null;
   audio_path: string;
   created_at: string;
+  question_id: string | null;
 }
 
 export interface LeaderboardEntry {
@@ -85,6 +87,7 @@ export interface SubmissionEntry {
   fluency_score: number | null;
   created_at: string;
   feedback_text: string | null;
+  word_count: number | null;
 }
 
 const api = {

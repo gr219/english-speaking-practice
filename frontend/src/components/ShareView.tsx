@@ -15,6 +15,9 @@ interface SharedRecording {
   fluency: Fluency | null;
   grammar: Grammar | null;
   ielts_band: number | null;
+  speaker_name: string | null;
+  audio_path: string;
+  question_id: string | null;
 }
 
 export default function ShareView() {
@@ -38,6 +41,9 @@ export default function ShareView() {
           fluency,
           grammar,
           ielts_band: rec.ielts_band,
+          speaker_name: rec.speaker_name,
+          audio_path: rec.audio_path,
+          question_id: rec.question_id,
         });
       })
       .catch(() => setError(true));
@@ -57,7 +63,7 @@ export default function ShareView() {
             to="/"
             className="px-4 py-2 bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 rounded-lg text-sm font-medium hover:bg-zinc-800 dark:hover:bg-zinc-200"
           >
-            Try Speech yourself →
+            Go home →
           </Link>
         </div>
       </div>
@@ -73,6 +79,8 @@ export default function ShareView() {
   }
 
   const audioUrl = api.getAudioUrl(recording.id);
+  const isWriting = recording.audio_path === '';
+  const wordCount = recording.text.trim() ? recording.text.trim().split(/\s+/).length : 0;
 
   const playFullAudio = () => {
     new Audio(audioUrl).play();
@@ -85,61 +93,87 @@ export default function ShareView() {
         {/* Header */}
         <div className="flex items-center justify-between mb-8">
           <div className="flex items-center gap-2">
-            <span className="text-lg">🎙️</span>
-            <span className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">Speech</span>
+            <span className="text-lg">{isWriting ? '✍️' : '🎙️'}</span>
+            <span className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+              {isWriting ? 'Writing' : 'Speech'}
+            </span>
           </div>
-          <Link
-            to="/"
-            className="text-xs text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300"
-          >
-            Try it yourself →
-          </Link>
+          {recording.question_id && (
+            <Link
+              to={`/q/${recording.question_id}`}
+              className="text-xs text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300"
+            >
+              {isWriting ? 'Try writing yourself →' : 'Try it yourself →'}
+            </Link>
+          )}
         </div>
 
-        {/* IELTS Band */}
-        {recording.ielts_band != null && (
-          <div className="mb-6 p-4 bg-indigo-50 dark:bg-indigo-900/30 border border-indigo-200 dark:border-indigo-700 rounded-lg flex items-center justify-between">
-            <div>
-              <div className="text-xs uppercase text-indigo-400 tracking-wide">IELTS Speaking Band</div>
-              <div className="text-2xl font-bold text-indigo-700 dark:text-indigo-300">{recording.ielts_band.toFixed(1)}</div>
-            </div>
-            <div className="text-xs text-indigo-500 dark:text-indigo-400 max-w-[180px] text-right">
-              Based on pronunciation, fluency, and accuracy
-            </div>
+        {/* Student name */}
+        {recording.speaker_name && (
+          <div className="mb-6 p-3 bg-gray-50 dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 rounded-lg">
+            <div className="text-xs uppercase text-zinc-400 tracking-wide mb-1">Student</div>
+            <div className="text-base font-medium text-zinc-900 dark:text-zinc-100">{recording.speaker_name}</div>
           </div>
         )}
 
-        {/* Score */}
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <div className="text-xs uppercase text-zinc-400 tracking-wide">Score</div>
-            <div className={`text-4xl font-bold ${getScoreTextColor(recording.score)}`}>
-              {recording.score.toFixed(1)}
-              <span className="text-xl text-zinc-400">%</span>
+        {isWriting ? (
+          <>
+            {/* Writing answer display */}
+            <div className="mb-6">
+              <div className="text-xs uppercase text-zinc-400 tracking-wide mb-2">Written answer ({wordCount} words)</div>
+              <div className="p-4 bg-gray-50 dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 rounded-lg">
+                <p className="text-sm text-zinc-700 dark:text-zinc-300 whitespace-pre-wrap">{recording.text}</p>
+              </div>
             </div>
-          </div>
-          <button
-            onClick={playFullAudio}
-            className="px-4 py-2 bg-gray-100 dark:bg-zinc-700 rounded-md text-sm text-zinc-700 dark:text-zinc-200 hover:bg-gray-200 dark:hover:bg-zinc-600 transition-colors"
-          >
-            ▶ Listen
-          </button>
-        </div>
+          </>
+        ) : (
+          <>
+            {/* IELTS Band */}
+            {recording.ielts_band != null && (
+              <div className="mb-6 p-4 bg-indigo-50 dark:bg-indigo-900/30 border border-indigo-200 dark:border-indigo-700 rounded-lg flex items-center justify-between">
+                <div>
+                  <div className="text-xs uppercase text-indigo-400 tracking-wide">IELTS Speaking Band</div>
+                  <div className="text-2xl font-bold text-indigo-700 dark:text-indigo-300">{recording.ielts_band.toFixed(1)}</div>
+                </div>
+                <div className="text-xs text-indigo-500 dark:text-indigo-400 max-w-[180px] text-right">
+                  Based on pronunciation, fluency, and accuracy
+                </div>
+              </div>
+            )}
 
-        {/* Fluency analysis */}
-        <FluencyDisplay fluency={recording.fluency} />
+            {/* Score */}
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <div className="text-xs uppercase text-zinc-400 tracking-wide">Score</div>
+                <div className={`text-4xl font-bold ${getScoreTextColor(recording.score)}`}>
+                  {recording.score.toFixed(1)}
+                  <span className="text-xl text-zinc-400">%</span>
+                </div>
+              </div>
+              <button
+                onClick={playFullAudio}
+                className="px-4 py-2 bg-gray-100 dark:bg-zinc-700 rounded-md text-sm text-zinc-700 dark:text-zinc-200 hover:bg-gray-200 dark:hover:bg-zinc-600 transition-colors"
+              >
+                ▶ Listen
+              </button>
+            </div>
 
-        {/* Grammar analysis */}
-        <GrammarDisplay grammar={recording.grammar} />
+            {/* Fluency analysis */}
+            <FluencyDisplay fluency={recording.fluency} />
 
-        {/* Recognized text */}
-        <div className="mb-4">
-          <div className="text-xs uppercase text-zinc-400 tracking-wide mb-2">Recognized speech</div>
-          <p className="text-sm text-zinc-700 dark:text-zinc-300 italic">"{recording.text}"</p>
-        </div>
+            {/* Grammar analysis */}
+            <GrammarDisplay grammar={recording.grammar} />
 
-        {/* Word analysis */}
-        <WordPills words={recording.words} audioBlob={null} audioUrl={audioUrl} />
+            {/* Recognized text */}
+            <div className="mb-4">
+              <div className="text-xs uppercase text-zinc-400 tracking-wide mb-2">Recognized speech</div>
+              <p className="text-sm text-zinc-700 dark:text-zinc-300 italic">"{recording.text}"</p>
+            </div>
+
+            {/* Word analysis */}
+            <WordPills words={recording.words} audioBlob={null} audioUrl={audioUrl} />
+          </>
+        )}
 
         {/* Feedback section */}
         {feedbacks.length > 0 && (
@@ -165,13 +199,24 @@ export default function ShareView() {
 
         {/* CTA */}
         <div className="mt-8 pt-6 border-t border-gray-200 dark:border-zinc-700 text-center">
-          <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-3">Want to practice your pronunciation?</p>
-          <Link
-            to="/"
-            className="inline-block px-6 py-3 bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 rounded-lg font-medium hover:bg-zinc-800 dark:hover:bg-zinc-200 transition-colors"
-          >
-            Try Speech yourself
-          </Link>
+          {recording.question_id ? (
+            <Link
+              to={`/q/${recording.question_id}`}
+              className="inline-block px-6 py-3 bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 rounded-lg font-medium hover:bg-zinc-800 dark:hover:bg-zinc-200 transition-colors"
+            >
+              {isWriting ? 'Try Writing yourself' : 'Try Speech yourself'}
+            </Link>
+          ) : (
+            <>
+              <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-3">Want to practice your pronunciation?</p>
+              <Link
+                to="/"
+                className="inline-block px-6 py-3 bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 rounded-lg font-medium hover:bg-zinc-800 dark:hover:bg-zinc-200 transition-colors"
+              >
+                Try Speech yourself
+              </Link>
+            </>
+          )}
         </div>
       </div>
     </div>

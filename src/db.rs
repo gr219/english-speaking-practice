@@ -77,6 +77,7 @@ pub struct SubmissionEntry {
     pub fluency_score: Option<f64>,
     pub created_at: String,
     pub feedback_text: Option<String>,
+    pub word_count: Option<i64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -404,10 +405,11 @@ impl Database {
         let conn = self.conn.lock().unwrap();
         let mut stmt = conn.prepare(
             "SELECT r.id, r.speaker_name, r.score, r.fluency_json, r.created_at,
-                    (SELECT f.feedback_text FROM feedbacks f WHERE f.recording_id = r.id ORDER BY f.created_at DESC LIMIT 1) as feedback_text
+                    (SELECT f.feedback_text FROM feedbacks f WHERE f.recording_id = r.id ORDER BY f.created_at DESC LIMIT 1) as feedback_text,
+                    CASE WHEN r.audio_path = '' THEN (length(trim(r.text)) - length(replace(trim(r.text), ' ', '')) + 1) ELSE NULL END as word_count
              FROM recordings r
              WHERE r.question_id = ?1 AND r.submitted = 1
-             ORDER BY r.score DESC",
+             ORDER BY r.created_at DESC",
         )?;
         let rows = stmt.query_map(params![question_id], |row| {
             let fluency_json: Option<String> = row.get(3)?;
@@ -423,6 +425,7 @@ impl Database {
                 fluency_score,
                 created_at: row.get(4)?,
                 feedback_text: row.get(5)?,
+                word_count: row.get(6)?,
             })
         })?;
         rows.collect()

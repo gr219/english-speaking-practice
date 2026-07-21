@@ -34,6 +34,7 @@ export default function QuestionResultsView() {
   const isCreator = question?.creator_id === userId;
   const canFeedback = isAdmin || isCreator;
   const canDelete = isAdmin || isCreator;
+  const isWritingQuestion = question?.question_type === 'writing';
 
   useEffect(() => {
     const fetchData = async () => {
@@ -228,18 +229,31 @@ export default function QuestionResultsView() {
                   <th className="px-4 py-3 text-left text-xs font-semibold text-zinc-600 dark:text-zinc-300 uppercase tracking-wider">
                     Name
                   </th>
-                  <th className="px-2 py-3 text-left text-xs font-semibold text-zinc-600 dark:text-zinc-300 uppercase tracking-wider w-16">
-                    Pron.
-                  </th>
-                  <th className="px-2 py-3 text-left text-xs font-semibold text-zinc-600 dark:text-zinc-300 uppercase tracking-wider w-16">
-                    Fluency
-                  </th>
-                  <th className="px-2 py-3 text-left text-xs font-semibold text-zinc-600 dark:text-zinc-300 uppercase tracking-wider w-20">
-                    Time
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-zinc-600 dark:text-zinc-300 uppercase tracking-wider min-w-[220px]">
-                    Audio & Actions
-                  </th>
+                  {isWritingQuestion ? (
+                    <>
+                      <th className="px-2 py-3 text-left text-xs font-semibold text-zinc-600 dark:text-zinc-300 uppercase tracking-wider w-20">
+                        Words
+                      </th>
+                      <th className="px-2 py-3 text-left text-xs font-semibold text-zinc-600 dark:text-zinc-300 uppercase tracking-wider w-28">
+                        Time
+                      </th>
+                    </>
+                  ) : (
+                    <>
+                      <th className="px-2 py-3 text-left text-xs font-semibold text-zinc-600 dark:text-zinc-300 uppercase tracking-wider w-16">
+                        Pron.
+                      </th>
+                      <th className="px-2 py-3 text-left text-xs font-semibold text-zinc-600 dark:text-zinc-300 uppercase tracking-wider w-16">
+                        Fluency
+                      </th>
+                      <th className="px-2 py-3 text-left text-xs font-semibold text-zinc-600 dark:text-zinc-300 uppercase tracking-wider w-20">
+                        Time
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-zinc-600 dark:text-zinc-300 uppercase tracking-wider min-w-[220px]">
+                        Audio & Actions
+                      </th>
+                    </>
+                  )}
                   <th className="px-4 py-3 text-left text-xs font-semibold text-zinc-600 dark:text-zinc-300 uppercase tracking-wider">
                     Feedback
                   </th>
@@ -265,90 +279,116 @@ export default function QuestionResultsView() {
                     >
                       {sub.speaker_name || 'Anonymous'}
                     </td>
-                    <td className="px-2 py-3 text-sm w-16" title={`${sub.score.toFixed(1)}%`}>
-                      <span className="font-semibold text-blue-600 dark:text-blue-400">
-                        {sub.score.toFixed(0)}%
-                      </span>
-                    </td>
-                    <td className="px-2 py-3 text-sm w-16">
-                      {sub.fluency_score !== null ? (
-                        <span className="font-semibold text-green-600 dark:text-green-400" title={`${sub.fluency_score.toFixed(1)}%`}>
-                          {sub.fluency_score.toFixed(0)}%
-                        </span>
-                      ) : (
-                        <span className="text-zinc-400">-</span>
-                      )}
-                    </td>
-                    <td className="px-2 py-3 text-[11px] text-zinc-500 dark:text-zinc-400 w-20 truncate" title={formatDate(sub.created_at)}>
-                      {new Date(sub.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
-                    </td>
-                    <td className="px-4 py-3 min-w-[220px]">
-                      <div className="flex items-center gap-1">
-                        <button
-                          onClick={() => handlePlayAudio(sub.id)}
-                          className="text-blue-500 hover:text-blue-600 dark:text-blue-400 dark:hover:text-blue-300 text-xs"
-                        >
-                          {playingId === sub.id ? '⏸' : '▶'}
-                        </button>
-                        {canDelete && (
+                    {isWritingQuestion ? (
+                      <>
+                        <td className="px-2 py-3 text-sm w-20">
+                          <span className="font-semibold text-zinc-700 dark:text-zinc-300">
+                            {sub.word_count ?? '-'}
+                          </span>
+                        </td>
+                        <td className="px-2 py-3 text-[11px] text-zinc-500 dark:text-zinc-400 w-28 truncate" title={formatDate(sub.created_at)}>
+                          {new Date(sub.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                        </td>
+                      </>
+                    ) : (
+                      <>
+                        <td className="px-2 py-3 text-sm w-16" title={`${sub.score.toFixed(1)}%`}>
+                          <span className="font-semibold text-blue-600 dark:text-blue-400">
+                            {sub.score.toFixed(0)}%
+                          </span>
+                        </td>
+                        <td className="px-2 py-3 text-sm w-16">
+                          {sub.fluency_score !== null ? (
+                            <span className="font-semibold text-green-600 dark:text-green-400" title={`${sub.fluency_score.toFixed(1)}%`}>
+                              {sub.fluency_score.toFixed(0)}%
+                            </span>
+                          ) : (
+                            <span className="text-zinc-400">-</span>
+                          )}
+                        </td>
+                        <td className="px-2 py-3 text-[11px] text-zinc-500 dark:text-zinc-400 w-20 truncate" title={formatDate(sub.created_at)}>
+                          {new Date(sub.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                        </td>
+                        <td className="px-4 py-3 min-w-[220px]">
+                          <div className="flex items-center gap-1">
+                            <button
+                              onClick={() => handlePlayAudio(sub.id)}
+                              className="text-blue-500 hover:text-blue-600 dark:text-blue-400 dark:hover:text-blue-300 text-xs"
+                            >
+                              {playingId === sub.id ? '⏸' : '▶'}
+                            </button>
+                            {canDelete && (
+                              <button
+                                onClick={() => handleDeleteSubmission(sub.id)}
+                                className="text-red-500 hover:text-red-600 text-xs"
+                                title="Delete submission"
+                              >
+                                🗑️
+                              </button>
+                            )}
+                          </div>
+                          {playingId === sub.id && (
+                            <div className="mt-1">
+                              <AudioPlayer
+                                src={api.getAudioUrl(sub.id)}
+                                autoPlay
+                                onEnded={() => setPlayingId(null)}
+                              />
+                            </div>
+                          )}
+                        </td>
+                      </>
+                    )}
+                    <td className="px-4 py-3 text-sm align-top">
+                      <div className="flex flex-col gap-2">
+                        {sub.feedback_text ? (
+                          <div
+                            className="flex items-start gap-1 px-2 py-1.5 rounded-md cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
+                            onClick={() => setViewingFeedback(sub.feedback_text!)}
+                          >
+                            <span className="text-green-500 shrink-0">✅</span>
+                            <span className="text-xs text-zinc-500 dark:text-zinc-400 whitespace-pre-wrap line-clamp-2">
+                              {sub.feedback_text}
+                            </span>
+                          </div>
+                        ) : (
+                          <span className="text-zinc-400">—</span>
+                        )}
+                        {canFeedback && (
+                          <div>
+                            {feedbackSent[sub.id] ? (
+                              <div className="text-xs text-green-600 dark:text-green-400">✓ Feedback sent</div>
+                            ) : (
+                              <div className="flex gap-1">
+                                <input
+                                  type="text"
+                                  readOnly
+                                  value={feedbackText[sub.id] || ''}
+                                  onFocus={() => setFeedbackPopupId(sub.id)}
+                                  placeholder="Write feedback..."
+                                  className="flex-1 px-2 py-1 text-xs border border-gray-200 dark:border-zinc-600 rounded bg-white dark:bg-zinc-700 text-zinc-800 dark:text-zinc-200 placeholder-zinc-400 focus:outline-none focus:ring-1 focus:ring-blue-300 cursor-pointer"
+                                />
+                                <button
+                                  onClick={() => handleSubmitFeedback(sub.id)}
+                                  disabled={feedbackSending === sub.id || !feedbackText[sub.id]?.trim()}
+                                  className="px-2 py-1 text-xs bg-indigo-500 text-white rounded hover:bg-indigo-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                  {feedbackSending === sub.id ? '...' : 'Send'}
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                        {canDelete && isWritingQuestion && (
                           <button
                             onClick={() => handleDeleteSubmission(sub.id)}
-                            className="text-red-500 hover:text-red-600 text-xs"
+                            className="text-red-500 hover:text-red-600 text-xs self-start"
                             title="Delete submission"
                           >
-                            🗑️
+                            🗑️ Delete
                           </button>
                         )}
                       </div>
-                      {playingId === sub.id && (
-                        <div className="mt-1">
-                          <AudioPlayer
-                            src={api.getAudioUrl(sub.id)}
-                            autoPlay
-                            onEnded={() => setPlayingId(null)}
-                          />
-                        </div>
-                      )}
-                      {canFeedback && (
-                        <div className="mt-2">
-                          {feedbackSent[sub.id] ? (
-                            <div className="text-xs text-green-600 dark:text-green-400">✓ Feedback sent</div>
-                          ) : (
-                            <div className="flex gap-1">
-                              <input
-                                type="text"
-                                readOnly
-                                value={feedbackText[sub.id] || ''}
-                                onFocus={() => setFeedbackPopupId(sub.id)}
-                                placeholder="Write feedback..."
-                                className="flex-1 px-2 py-1 text-xs border border-gray-200 dark:border-zinc-600 rounded bg-white dark:bg-zinc-700 text-zinc-800 dark:text-zinc-200 placeholder-zinc-400 focus:outline-none focus:ring-1 focus:ring-blue-300 cursor-pointer"
-                              />
-                              <button
-                                onClick={() => handleSubmitFeedback(sub.id)}
-                                disabled={feedbackSending === sub.id || !feedbackText[sub.id]?.trim()}
-                                className="px-2 py-1 text-xs bg-indigo-500 text-white rounded hover:bg-indigo-600 disabled:opacity-50 disabled:cursor-not-allowed"
-                              >
-                                {feedbackSending === sub.id ? '...' : 'Send'}
-                              </button>
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 text-sm align-top">
-                      {sub.feedback_text ? (
-                        <div
-                          className="flex items-start gap-1 px-2 py-1.5 rounded-md cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
-                          onClick={() => setViewingFeedback(sub.feedback_text!)}
-                        >
-                          <span className="text-green-500 shrink-0">✅</span>
-                          <span className="text-xs text-zinc-500 dark:text-zinc-400 whitespace-pre-wrap line-clamp-2">
-                            {sub.feedback_text}
-                          </span>
-                        </div>
-                      ) : (
-                        <span className="text-zinc-400">—</span>
-                      )}
                     </td>
                   </tr>
                 ))}
