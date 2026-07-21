@@ -178,7 +178,9 @@ export default function QuestionResultsView() {
           </h1>
           <div className="text-lg text-zinc-800 dark:text-zinc-200 italic mb-2">"{question.text}"</div>
           <div className="text-sm text-zinc-600 dark:text-zinc-400">
-            Time limit: {Math.floor(question.time_limit_secs / 60)}:{(question.time_limit_secs % 60).toString().padStart(2, '0')}
+            {isWritingQuestion
+              ? `Words limit: ${question.time_limit_secs} words`
+              : `Time limit: ${Math.floor(question.time_limit_secs / 60)}:${(question.time_limit_secs % 60).toString().padStart(2, '0')}`}
           </div>
           {canFeedback && (
             <div className="mt-2 text-xs text-indigo-600 dark:text-indigo-400 font-medium">
