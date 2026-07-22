@@ -88,6 +88,7 @@ export interface SubmissionEntry {
   created_at: string;
   feedback_text: string | null;
   word_count: number | null;
+  text: string | null;
 }
 
 const api = {
@@ -289,6 +290,31 @@ const api = {
     return res.json();
   },
 
+  async createDiffFeedback(
+    recordingId: string,
+    questionId: string,
+    originalText: string,
+    editedText: string,
+    comment: string,
+    userId: string
+  ): Promise<{ id: string; diff_json: DiffOp[] }> {
+    const res = await fetch(`/api/recordings/${recordingId}/diff-feedback`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-User-Id': userId,
+      },
+      body: JSON.stringify({
+        original_text: originalText,
+        edited_text: editedText,
+        comment: comment || undefined,
+        question_id: questionId,
+      }),
+    });
+    if (!res.ok) throw new Error('Failed to submit diff feedback');
+    return res.json();
+  },
+
   async getFeedbacks(recordingId: string): Promise<Feedback[]> {
     const res = await fetch(`/api/recordings/${recordingId}/feedback`);
     if (!res.ok) throw new Error('Failed to get feedbacks');
@@ -389,8 +415,14 @@ export interface Feedback {
   recording_id: string;
   question_id: string;
   feedback_text: string;
+  diff_json: string | null;
   created_by: string;
   created_at: string;
+}
+
+export interface DiffOp {
+  op: 'equal' | 'delete' | 'insert';
+  text: string;
 }
 
 export interface RecentSubmission {
