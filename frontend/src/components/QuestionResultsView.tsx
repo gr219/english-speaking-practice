@@ -1,10 +1,12 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import api, { Question, SubmissionEntry } from '../lib/api';
+import api, { Question, SubmissionEntry, DiffOp } from '../lib/api';
 import { useUserId } from '../hooks/useUserId';
 import { useAdmin } from '../hooks/useAdmin';
 import Banner from './Banner';
 import AudioPlayer from './AudioPlayer';
+import TrackChangesFeedbackModal from './TrackChangesFeedbackModal';
+import DiffView from './DiffView';
 
 export default function QuestionResultsView() {
   const { id } = useParams<{ id: string }>();
@@ -23,6 +25,8 @@ export default function QuestionResultsView() {
   const [bulkDeleting, setBulkDeleting] = useState(false);
   const [feedbackPopupId, setFeedbackPopupId] = useState<string | null>(null);
   const [viewingFeedback, setViewingFeedback] = useState<string | null>(null);
+  const [viewingDiffJson, setViewingDiffJson] = useState<string | null>(null);
+  const [trackChangesSubId, setTrackChangesSubId] = useState<string | null>(null);
   const feedbackTextareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
@@ -346,7 +350,15 @@ export default function QuestionResultsView() {
                         {sub.feedback_text ? (
                           <div
                             className="flex items-start gap-1 px-2 py-1.5 rounded-md cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
-                            onClick={() => setViewingFeedback(sub.feedback_text!)}
+                            onClick={() => {
+                              setViewingFeedback(sub.feedback_text!);
+                              setViewingDiffJson(null);
+                              api.getFeedbacks(sub.id).then(feedbacks => {
+                                if (feedbacks.length > 0 && feedbacks[0].diff_json) {
+                                  setViewingDiffJson(feedbacks[0].diff_json);
+                                }
+                              });
+                            }}
                           >
                             <span className="text-green-500 shrink-0">✅</span>
                             <span className="text-xs text-zinc-500 dark:text-zinc-400 whitespace-pre-wrap line-clamp-2">
@@ -366,7 +378,13 @@ export default function QuestionResultsView() {
                                   type="text"
                                   readOnly
                                   value={feedbackText[sub.id] || ''}
-                                  onFocus={() => setFeedbackPopupId(sub.id)}
+                                  onFocus={() => {
+                                    if (isWritingQuestion && sub.text) {
+                                      setTrackChangesSubId(sub.id);
+                                    } else {
+                                      setFeedbackPopupId(sub.id);
+                                    }
+                                  }}
                                   placeholder="Write feedback..."
                                   className="flex-1 px-2 py-1 text-xs border border-gray-200 dark:border-zinc-600 rounded bg-white dark:bg-zinc-700 text-zinc-800 dark:text-zinc-200 placeholder-zinc-400 focus:outline-none focus:ring-1 focus:ring-blue-300 cursor-pointer"
                                 />
@@ -457,24 +475,65 @@ export default function QuestionResultsView() {
         </div>
       )}
 
+      {/* Track Changes Feedback Modal for writing questions */}
+      {trackChangesSubId && (() => {
+        const sub = submissions.find(s => s.id === trackChangesSubId);
+        if (!sub || !sub.text) return null;
+        return (
+          <TrackChangesFeedbackModal
+            submissionId={sub.id}
+            originalText={sub.text}
+            speakerName={sub.speaker_name}
+            questionId={id!}
+            userId={userId}
+            onClose={() => setTrackChangesSubId(null)}
+            onSent={() => {
+              setTrackChangesSubId(null);
+              setFeedbackSent((prev) => ({ ...prev, [sub.id]: true }));
+            }}
+          />
+        );
+      })()}
+
       {/* Feedback viewing modal */}
       {viewingFeedback && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
-          onClick={() => setViewingFeedback(null)}
+          onClick={() => { setViewingFeedback(null); setViewingDiffJson(null); }}
         >
           <div
-            className="bg-white dark:bg-zinc-800 rounded-lg shadow-xl p-6 w-full max-w-lg mx-4 max-h-[70vh] overflow-y-auto"
+            className="bg-white dark:bg-zinc-800 rounded-lg shadow-xl p-6 w-full max-w-2xl mx-4 max-h-[80vh] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 className="text-sm font-semibold text-zinc-500 dark:text-zinc-400 mb-3">Feedback</h3>
-            <p className="text-base leading-relaxed text-zinc-800 dark:text-zinc-100 whitespace-pre-wrap">
-              {viewingFeedback}
-            </p>
+            {viewingDiffJson && (() => {
+              try {
+                const ops: DiffOp[] = JSON.parse(viewingDiffJson);
+                return (
+                  <div>
+                    <h3 className="text-sm font-semibold text-zinc-500 dark:text-zinc-400 mb-3">Tracked Changes</h3>
+                    <DiffView ops={ops} />
+                    {viewingFeedback && (
+                      <div className="mt-4 pt-3 border-t border-gray-200 dark:border-zinc-600">
+                        <h4 className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 mb-1">Teacher's comment:</h4>
+                        <p className="text-sm text-zinc-700 dark:text-zinc-300 whitespace-pre-wrap">{viewingFeedback}</p>
+                      </div>
+                    )}
+                  </div>
+                );
+              } catch {
+                return <p className="text-sm text-zinc-700 dark:text-zinc-300 whitespace-pre-wrap">{viewingFeedback}</p>;
+              }
+            })()}
+            {!viewingDiffJson && (
+              <div>
+                <h3 className="text-sm font-semibold text-zinc-500 dark:text-zinc-400 mb-3">Feedback</h3>
+                <p className="text-sm text-zinc-700 dark:text-zinc-300 whitespace-pre-wrap">{viewingFeedback}</p>
+              </div>
+            )}
             <div className="flex justify-end mt-4">
               <button
-                onClick={() => setViewingFeedback(null)}
-                className="px-4 py-1.5 text-sm text-zinc-600 dark:text-zinc-300 hover:text-zinc-800 dark:hover:text-zinc-100 rounded"
+                onClick={() => { setViewingFeedback(null); setViewingDiffJson(null); }}
+                className="px-3 py-1.5 text-sm text-zinc-600 dark:text-zinc-300 hover:text-zinc-800 dark:hover:text-zinc-100 rounded"
               >
                 Close
               </button>
