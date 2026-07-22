@@ -1,5 +1,7 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import api from '../lib/api';
+import DiffView from './DiffView';
+import { computeWordDiff } from '../lib/wordDiff';
 
 interface TrackChangesFeedbackModalProps {
   submissionId: string;
@@ -25,6 +27,12 @@ export default function TrackChangesFeedbackModal({
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  const diffOps = useMemo(
+    () => computeWordDiff(originalText, editedText),
+    [originalText, editedText]
+  );
+  const hasChanges = editedText !== originalText;
 
   useEffect(() => {
     if (textareaRef.current) {
@@ -75,6 +83,17 @@ export default function TrackChangesFeedbackModal({
           rows={10}
           className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-700 text-zinc-800 dark:text-zinc-200 focus:outline-none focus:ring-2 focus:ring-blue-400 resize-y mb-4"
         />
+
+        {hasChanges && (
+          <div className="mb-4">
+            <label className="text-xs text-zinc-500 dark:text-zinc-400 block mb-1">
+              Preview (tracked changes):
+            </label>
+            <div className="p-3 border border-gray-200 dark:border-zinc-600 rounded-lg bg-gray-50 dark:bg-zinc-700/50 max-h-60 overflow-y-auto">
+              <DiffView ops={diffOps} />
+            </div>
+          </div>
+        )}
 
         <label className="text-xs text-zinc-500 dark:text-zinc-400 block mb-1">
           General comment (optional):
