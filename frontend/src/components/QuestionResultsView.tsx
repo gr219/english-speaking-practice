@@ -521,13 +521,13 @@ export default function QuestionResultsView() {
                   </div>
                 );
               } catch {
-                return <p className="text-sm text-zinc-700 dark:text-zinc-300 whitespace-pre-wrap">{viewingFeedback}</p>;
+                return <p className="text-base leading-relaxed text-zinc-800 dark:text-zinc-100 whitespace-pre-wrap">{viewingFeedback}</p>;
               }
             })()}
             {!viewingDiffJson && (
               <div>
                 <h3 className="text-sm font-semibold text-zinc-500 dark:text-zinc-400 mb-3">Feedback</h3>
-                <p className="text-sm text-zinc-700 dark:text-zinc-300 whitespace-pre-wrap">{viewingFeedback}</p>
+                <p className="text-base leading-relaxed text-zinc-800 dark:text-zinc-100 whitespace-pre-wrap">{viewingFeedback}</p>
               </div>
             )}
             <div className="flex justify-end mt-4">
