@@ -98,6 +98,7 @@ pub struct Feedback {
     pub recording_id: String,
     pub question_id: String,
     pub feedback_text: String,
+    pub diff_json: Option<String>,
     pub created_by: String,
     pub created_at: String,
 }
@@ -244,6 +245,7 @@ impl Database {
                 recording_id TEXT NOT NULL,
                 question_id TEXT NOT NULL,
                 feedback_text TEXT NOT NULL,
+                diff_json TEXT,
                 created_by TEXT NOT NULL,
                 created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
                 FOREIGN KEY (recording_id) REFERENCES recordings(id),
@@ -252,6 +254,9 @@ impl Database {
             CREATE INDEX IF NOT EXISTS idx_feedbacks_recording_id ON feedbacks(recording_id);
             CREATE INDEX IF NOT EXISTS idx_feedbacks_question_id ON feedbacks(question_id);"
         )?;
+
+        // Migration: add diff_json column if not exists
+        let _ = conn.execute_batch("ALTER TABLE feedbacks ADD COLUMN diff_json TEXT;");
 
         Ok(Self {
             conn: Mutex::new(conn),
@@ -661,10 +666,21 @@ impl Database {
         Ok(id)
     }
 
+    pub fn insert_diff_feedback(&self, recording_id: &str, question_id: &str, feedback_text: &str, diff_json: &str, created_by: &str) -> Result<String> {
+        let id = uuid::Uuid::new_v4().to_string();
+        let conn = self.conn.lock().unwrap();
+        conn.execute(
+            "INSERT INTO feedbacks (id, recording_id, question_id, feedback_text, diff_json, created_by)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            params![id, recording_id, question_id, feedback_text, diff_json, created_by],
+        )?;
+        Ok(id)
+    }
+
     pub fn get_feedbacks_for_recording(&self, recording_id: &str) -> Result<Vec<Feedback>> {
         let conn = self.conn.lock().unwrap();
         let mut stmt = conn.prepare(
-            "SELECT id, recording_id, question_id, feedback_text, created_by, created_at
+            "SELECT id, recording_id, question_id, feedback_text, diff_json, created_by, created_at
              FROM feedbacks WHERE recording_id = ?1 ORDER BY created_at DESC",
         )?;
         let rows = stmt.query_map(params![recording_id], |row| {
@@ -673,8 +689,9 @@ impl Database {
                 recording_id: row.get(1)?,
                 question_id: row.get(2)?,
                 feedback_text: row.get(3)?,
-                created_by: row.get(4)?,
-                created_at: row.get(5)?,
+                diff_json: row.get(4)?,
+                created_by: row.get(5)?,
+                created_at: row.get(6)?,
             })
         })?;
         rows.collect()
