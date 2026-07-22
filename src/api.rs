@@ -794,6 +794,70 @@ async fn create_feedback_handler(
     Ok(Json(serde_json::json!({ "id": id })))
 }
 
+#[derive(Deserialize)]
+pub struct CreateDiffFeedbackRequest {
+    pub original_text: String,
+    pub edited_text: String,
+    pub comment: Option<String>,
+    pub question_id: String,
+}
+
+#[derive(Serialize)]
+pub struct DiffOp {
+    pub op: String,
+    pub text: String,
+}
+
+fn compute_word_diff(original: &str, edited: &str) -> Vec<DiffOp> {
+    use similar::{ChangeTag, TextDiff};
+
+    let diff = TextDiff::from_words(original, edited);
+    let mut ops: Vec<DiffOp> = Vec::new();
+
+    for change in diff.iter_all_changes() {
+        let op_str = match change.tag() {
+            ChangeTag::Equal => "equal",
+            ChangeTag::Delete => "delete",
+            ChangeTag::Insert => "insert",
+        };
+        let text = change.value().to_string();
+
+        // Merge consecutive ops of the same type
+        if let Some(last) = ops.last_mut() {
+            if last.op == op_str {
+                last.text.push_str(&text);
+                continue;
+            }
+        }
+        ops.push(DiffOp {
+            op: op_str.to_string(),
+            text,
+        });
+    }
+    ops
+}
+
+async fn create_diff_feedback_handler(
+    state: State<ServerState>,
+    headers: HeaderMap,
+    Path(recording_id): Path<String>,
+    Json(req): Json<CreateDiffFeedbackRequest>,
+) -> Result<impl IntoResponse, StatusCode> {
+    let created_by = extract_user_id(&headers).unwrap_or_default();
+    let comment = req.comment.unwrap_or_default();
+
+    let diff_ops = compute_word_diff(&req.original_text, &req.edited_text);
+    let diff_json = serde_json::to_string(&diff_ops)
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    let id = state
+        .db
+        .insert_diff_feedback(&recording_id, &req.question_id, &comment, &diff_json, &created_by)
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    Ok(Json(serde_json::json!({ "id": id, "diff_json": diff_ops })))
+}
+
 async fn get_feedbacks_handler(
     state: State<ServerState>,
     Path(recording_id): Path<String>,
@@ -856,6 +920,7 @@ pub fn router() -> Router<ServerState, Body> {
         .route("/recordings/:id/submit", post(submit_recording_handler))
         .route("/recordings/:id/feedback", post(create_feedback_handler))
         .route("/recordings/:id/feedback", get(get_feedbacks_handler))
+        .route("/recordings/:id/diff-feedback", post(create_diff_feedback_handler))
         .route("/leaderboard", get(leaderboard_handler))
         .route("/questions", post(create_question_handler))
         .route("/questions", get(list_questions_handler))
