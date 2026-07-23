@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import api, { Word, Fluency, Grammar, Feedback } from '../lib/api';
+import api, { Word, Fluency, Grammar, Feedback, DiffOp } from '../lib/api';
 import WordPills from './WordPills';
 import FluencyDisplay from './FluencyDisplay';
 import GrammarDisplay from './GrammarDisplay';
 import Banner from './Banner';
+import DiffView from './DiffView';
 import { getScoreTextColor } from '../lib/utils';
 
 interface SharedRecording {
@@ -182,17 +183,37 @@ export default function ShareView() {
               💬 Feedback from teacher
             </div>
             <div className="space-y-3">
-              {feedbacks.map((fb) => (
-                <div
-                  key={fb.id}
-                  className="p-3 bg-indigo-50 dark:bg-indigo-900/30 border border-indigo-200 dark:border-indigo-700 rounded-lg"
-                >
-                  <p className="text-sm text-zinc-800 dark:text-zinc-200">{fb.feedback_text}</p>
-                  <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">
-                    {new Date(fb.created_at).toLocaleString()}
-                  </p>
-                </div>
-              ))}
+              {feedbacks.map((fb) => {
+                let diffOps: DiffOp[] | null = null;
+                if (fb.diff_json) {
+                  try {
+                    diffOps = JSON.parse(fb.diff_json);
+                  } catch {
+                    // ignore parse errors
+                  }
+                }
+                return (
+                  <div
+                    key={fb.id}
+                    className="p-3 bg-indigo-50 dark:bg-indigo-900/30 border border-indigo-200 dark:border-indigo-700 rounded-lg"
+                  >
+                    {diffOps && diffOps.length > 0 && (
+                      <div className="mb-3">
+                        <h4 className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 mb-1">Tracked Changes</h4>
+                        <div className="p-2 bg-white dark:bg-zinc-800 border border-gray-200 dark:border-zinc-600 rounded">
+                          <DiffView ops={diffOps} />
+                        </div>
+                      </div>
+                    )}
+                    {fb.feedback_text && (
+                      <p className="text-sm text-zinc-800 dark:text-zinc-200">{fb.feedback_text}</p>
+                    )}
+                    <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">
+                      {new Date(fb.created_at).toLocaleString()}
+                    </p>
+                  </div>
+                );
+              })}
             </div>
           </div>
         )}

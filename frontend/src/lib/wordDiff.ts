@@ -6,8 +6,8 @@ import { DiffOp } from './api';
  * same-type ops merged for clean rendering.
  */
 export function computeWordDiff(original: string, edited: string): DiffOp[] {
-  const oldWords = tokenize(original);
-  const newWords = tokenize(edited);
+  const oldWords = tokenize(original.trim());
+  const newWords = tokenize(edited.trim());
 
   const ops = myersDiff(oldWords, newWords);
 

@@ -811,6 +811,9 @@ pub struct DiffOp {
 fn compute_word_diff(original: &str, edited: &str) -> Vec<DiffOp> {
     use similar::{ChangeTag, TextDiff};
 
+    let original = original.trim();
+    let edited = edited.trim();
+
     let diff = TextDiff::from_words(original, edited);
     let mut ops: Vec<DiffOp> = Vec::new();
 
