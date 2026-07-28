@@ -362,7 +362,7 @@ export default function QuestionResultsView() {
                           >
                             <span className="text-green-500 shrink-0">✅</span>
                             <span className="text-xs text-zinc-500 dark:text-zinc-400 whitespace-pre-wrap line-clamp-2">
-                              {sub.feedback_text}
+                              {sub.feedback_text === '[tracked changes]' ? 'Tracked changes feedback' : sub.feedback_text}
                             </span>
                           </div>
                         ) : (
@@ -512,7 +512,7 @@ export default function QuestionResultsView() {
                   <div>
                     <h3 className="text-sm font-semibold text-zinc-500 dark:text-zinc-400 mb-3">Tracked Changes</h3>
                     <DiffView ops={ops} />
-                    {viewingFeedback && (
+                    {viewingFeedback && viewingFeedback !== '[tracked changes]' && (
                       <div className="mt-4 pt-3 border-t border-gray-200 dark:border-zinc-600">
                         <h4 className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 mb-1">Teacher's comment:</h4>
                         <p className="text-sm text-zinc-700 dark:text-zinc-300 whitespace-pre-wrap">{viewingFeedback}</p>

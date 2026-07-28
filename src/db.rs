@@ -411,7 +411,7 @@ impl Database {
         let conn = self.conn.lock().unwrap();
         let mut stmt = conn.prepare(
             "SELECT r.id, r.speaker_name, r.score, r.fluency_json, r.created_at,
-                    (SELECT f.feedback_text FROM feedbacks f WHERE f.recording_id = r.id ORDER BY f.created_at DESC LIMIT 1) as feedback_text,
+                    (SELECT COALESCE(NULLIF(f.feedback_text, ''), CASE WHEN f.diff_json IS NOT NULL AND f.diff_json != '' THEN '[tracked changes]' ELSE NULL END) FROM feedbacks f WHERE f.recording_id = r.id ORDER BY f.created_at DESC LIMIT 1) as feedback_text,
                     CASE WHEN r.audio_path = '' THEN (length(trim(r.text)) - length(replace(trim(r.text), ' ', '')) + 1) ELSE NULL END as word_count,
                     CASE WHEN r.audio_path = '' THEN r.text ELSE NULL END as text
              FROM recordings r
