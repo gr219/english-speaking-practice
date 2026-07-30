@@ -298,9 +298,9 @@ export default function QuestionResultsView() {
                       </>
                     ) : (
                       <>
-                        <td className="px-2 py-3 text-sm w-16" title={`${sub.score.toFixed(1)}%`}>
+                        <td className="px-2 py-3 text-sm w-16" title={`${(sub.pronunciation_score ?? sub.score).toFixed(1)}%`}>
                           <span className="font-semibold text-blue-600 dark:text-blue-400">
-                            {sub.score.toFixed(0)}%
+                            {(sub.pronunciation_score ?? sub.score).toFixed(0)}%
                           </span>
                         </td>
                         <td className="px-2 py-3 text-sm w-16">

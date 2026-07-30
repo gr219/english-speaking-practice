@@ -84,6 +84,7 @@ export interface SubmissionEntry {
   id: string;
   speaker_name: string | null;
   score: number;
+  pronunciation_score: number | null;
   fluency_score: number | null;
   created_at: string;
   feedback_text: string | null;

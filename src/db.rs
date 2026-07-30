@@ -74,6 +74,7 @@ pub struct SubmissionEntry {
     pub id: String,
     pub speaker_name: Option<String>,
     pub score: f64,
+    pub pronunciation_score: Option<f64>,
     pub fluency_score: Option<f64>,
     pub created_at: String,
     pub feedback_text: Option<String>,
@@ -413,7 +414,8 @@ impl Database {
             "SELECT r.id, r.speaker_name, r.score, r.fluency_json, r.created_at,
                     (SELECT COALESCE(NULLIF(f.feedback_text, ''), CASE WHEN f.diff_json IS NOT NULL AND f.diff_json != '' THEN '[tracked changes]' ELSE NULL END) FROM feedbacks f WHERE f.recording_id = r.id ORDER BY f.created_at DESC LIMIT 1) as feedback_text,
                     CASE WHEN r.audio_path = '' THEN (length(trim(r.text)) - length(replace(trim(r.text), ' ', '')) + 1) ELSE NULL END as word_count,
-                    CASE WHEN r.audio_path = '' THEN r.text ELSE NULL END as text
+                    CASE WHEN r.audio_path = '' THEN r.text ELSE NULL END as text,
+                    r.words_json
              FROM recordings r
              WHERE r.question_id = ?1 AND r.submitted = 1
              ORDER BY r.created_at DESC",
@@ -425,10 +427,29 @@ impl Database {
                     .ok()
                     .and_then(|v| v.get("score").and_then(|s| s.as_f64()))
             });
+            // Derive the pronunciation score the same way the analyze result does:
+            // the mean word confidence scaled to 0-100. This keeps the "Pron." column
+            // consistent with the number shown right after recording (r.score is the
+            // combined overall score, not pronunciation alone).
+            let words_json: Option<String> = row.get(8)?;
+            let pronunciation_score = words_json.and_then(|json| {
+                serde_json::from_str::<serde_json::Value>(&json)
+                    .ok()
+                    .and_then(|v| v.as_array().cloned())
+                    .filter(|arr| !arr.is_empty())
+                    .map(|arr| {
+                        let sum: f64 = arr
+                            .iter()
+                            .filter_map(|w| w.get("score").and_then(|s| s.as_f64()))
+                            .sum();
+                        sum / arr.len() as f64 * 100.0
+                    })
+            });
             Ok(SubmissionEntry {
                 id: row.get(0)?,
                 speaker_name: row.get(1)?,
                 score: row.get(2)?,
+                pronunciation_score,
                 fluency_score,
                 created_at: row.get(4)?,
                 feedback_text: row.get(5)?,
