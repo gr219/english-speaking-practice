@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo, useCallback, useRef } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import api, { QuestionSummary, QuestionWithCreator } from '../lib/api';
 import { truncateText, formatRelativeTime } from '../lib/utils';
 import { useAdmin } from '../hooks/useAdmin';
@@ -11,6 +11,26 @@ type SortDirection = 'asc' | 'desc';
 
 type FilterKey = 'class_label' | 'reviewed_status' | 'question_type';
 type Filters = Partial<Record<FilterKey, string>>;
+
+// Query-param names used to make the filtered/sorted table shareable via URL
+const FILTER_PARAMS: Record<FilterKey, string> = {
+  class_label: 'class',
+  reviewed_status: 'status',
+  question_type: 'type',
+};
+
+const SORT_COLUMNS: SortColumn[] = [
+  'text',
+  'class_label',
+  'submission_count',
+  'reviewed',
+  'created_at',
+  'time_limit_secs',
+  'question_type',
+];
+
+const DEFAULT_SORT_COLUMN: SortColumn = 'created_at';
+const DEFAULT_SORT_DIRECTION: SortDirection = 'desc';
 
 interface FilterDropdownProps {
   filterKey: FilterKey;
@@ -60,11 +80,32 @@ export default function HomeworkPage() {
   const { isAdmin, getAdminToken } = useAdmin();
   const adminToken = getAdminToken();
 
+  const [searchParams, setSearchParams] = useSearchParams();
+
   const [questions, setQuestions] = useState<(QuestionSummary | QuestionWithCreator)[]>([]);
-  const [sortColumn, setSortColumn] = useState<SortColumn>('created_at');
-  const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
-  const [filters, setFilters] = useState<Filters>({});
   const [openFilter, setOpenFilter] = useState<FilterKey | null>(null);
+
+  // Filters and sorting live in the URL so a filtered view can be shared as a link
+  const filters = useMemo<Filters>(() => {
+    const next: Filters = {};
+    (Object.keys(FILTER_PARAMS) as FilterKey[]).forEach((key) => {
+      const value = searchParams.get(FILTER_PARAMS[key]);
+      if (value) next[key] = value;
+    });
+    return next;
+  }, [searchParams]);
+
+  const sortParam = searchParams.get('sort') as SortColumn | null;
+  const sortColumn: SortColumn = sortParam && SORT_COLUMNS.includes(sortParam) ? sortParam : DEFAULT_SORT_COLUMN;
+  const sortDirection: SortDirection = searchParams.get('dir') === 'asc' ? 'asc' : 'desc';
+
+  const updateParams = useCallback((mutate: (params: URLSearchParams) => void) => {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      mutate(next);
+      return next;
+    }, { replace: true });
+  }, [setSearchParams]);
 
   const [selectMode, setSelectMode] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -90,9 +131,10 @@ export default function HomeworkPage() {
 
   useEffect(() => { fetchQuestions(); }, [fetchQuestions]);
 
+  const filterKey = JSON.stringify(filters);
   useEffect(() => {
     setSelected(new Set());
-  }, [filters]);
+  }, [filterKey]);
 
   // Close filter dropdown on outside click
   useEffect(() => {
@@ -161,13 +203,24 @@ export default function HomeworkPage() {
     return sorted;
   }, [filteredQuestions, sortColumn, sortDirection]);
 
+  const applySort = (col: SortColumn, dir: SortDirection) => {
+    updateParams((params) => {
+      if (col === DEFAULT_SORT_COLUMN && dir === DEFAULT_SORT_DIRECTION) {
+        params.delete('sort');
+        params.delete('dir');
+      } else {
+        params.set('sort', col);
+        params.set('dir', dir);
+      }
+    });
+  };
+
   const handleSort = (col: SortColumn) => {
     if (sortColumn === col) {
-      if (sortDirection === 'asc') setSortDirection('desc');
-      else { setSortColumn('created_at'); setSortDirection('desc'); }
+      if (sortDirection === 'asc') applySort(col, 'desc');
+      else applySort(DEFAULT_SORT_COLUMN, DEFAULT_SORT_DIRECTION);
     } else {
-      setSortColumn(col);
-      setSortDirection('asc');
+      applySort(col, 'asc');
     }
   };
 
@@ -211,11 +264,9 @@ export default function HomeworkPage() {
   };
 
   const setFilter = (key: FilterKey, value: string | undefined) => {
-    setFilters((prev) => {
-      const next = { ...prev };
-      if (value) next[key] = value;
-      else delete next[key];
-      return next;
+    updateParams((params) => {
+      if (value) params.set(FILTER_PARAMS[key], value);
+      else params.delete(FILTER_PARAMS[key]);
     });
     setOpenFilter(null);
   };
