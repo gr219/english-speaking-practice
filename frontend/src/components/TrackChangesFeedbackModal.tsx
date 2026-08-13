@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useMemo } from 'react';
 import api from '../lib/api';
 import DiffView from './DiffView';
 import { computeWordDiff } from '../lib/wordDiff';
+import { useFeedbackDraft } from '../hooks/useFeedbackDraft';
 
 interface TrackChangesFeedbackModalProps {
   submissionId: string;
@@ -22,11 +23,19 @@ export default function TrackChangesFeedbackModal({
   onClose,
   onSent,
 }: TrackChangesFeedbackModalProps) {
-  const [editedText, setEditedText] = useState(originalText);
-  const [comment, setComment] = useState('');
+  const { load, save, clear } = useFeedbackDraft(submissionId, questionId);
+  const savedDraft = load();
+
+  const [editedText, setEditedText] = useState(savedDraft?.editedText ?? originalText);
+  const [comment, setComment] = useState(savedDraft?.comment ?? '');
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Auto-save draft on every change
+  useEffect(() => {
+    save({ editedText, comment });
+  }, [editedText, comment, save]);
 
   const diffOps = useMemo(
     () => computeWordDiff(originalText, editedText),
@@ -49,6 +58,7 @@ export default function TrackChangesFeedbackModal({
     setError(null);
     try {
       await api.createDiffFeedback(submissionId, questionId, originalText, editedText, comment.trim(), userId);
+      clear();
       onSent();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to send feedback');
