@@ -80,7 +80,7 @@ export default function SharedHomeworkView() {
                 filters={filters as Filters}
                 sortColumn={sortColumn}
                 sortDirection={sortDirection}
-                onRowClick={(id) => navigate(`/q/${id}`)}
+                onRowClick={(id) => navigate(`/q/${id}/results`)}
                 readOnly
               />
             </>
