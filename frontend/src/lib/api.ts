@@ -378,6 +378,45 @@ const api = {
     if (!res.ok) throw new Error('Failed to list homework');
     return res.json();
   },
+
+  // Homework share links
+  async adminCreateHomeworkShare(adminToken: string, filters: HomeworkShareFilters, sortColumn: string, sortDirection: string): Promise<{ id: string }> {
+    const res = await fetch('/api/admin/homework/share', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Admin-Token': adminToken,
+      },
+      body: JSON.stringify({ filters, sort_column: sortColumn, sort_direction: sortDirection }),
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(() => null);
+      throw new Error(body?.error || 'Failed to create share link');
+    }
+    return res.json();
+  },
+
+  async adminListHomeworkShares(adminToken: string): Promise<HomeworkShareInfo[]> {
+    const res = await fetch('/api/admin/homework/shares', {
+      headers: { 'X-Admin-Token': adminToken },
+    });
+    if (!res.ok) throw new Error('Failed to list share links');
+    return res.json();
+  },
+
+  async adminRevokeHomeworkShare(id: string, adminToken: string): Promise<void> {
+    const res = await fetch(`/api/admin/homework/share/${id}/revoke`, {
+      method: 'POST',
+      headers: { 'X-Admin-Token': adminToken },
+    });
+    if (!res.ok) throw new Error('Failed to revoke share link');
+  },
+
+  async getSharedHomework(id: string): Promise<SharedHomeworkResponse> {
+    const res = await fetch(`/api/homework/share/${id}`);
+    if (!res.ok) throw new Error('Link not found or no longer active');
+    return res.json();
+  },
 };
 
 export interface LeaderboardEntry {
@@ -433,6 +472,27 @@ export interface RecentSubmission {
   question_id: string | null;
   question_text: string | null;
   created_at: string;
+}
+
+export interface HomeworkShareFilters {
+  class_label?: string;
+  reviewed_status?: string;
+  question_type?: string;
+}
+
+export interface HomeworkShareInfo {
+  id: string;
+  filters: HomeworkShareFilters;
+  sort_column: string;
+  sort_direction: string;
+  created_at: string;
+}
+
+export interface SharedHomeworkResponse {
+  filters: HomeworkShareFilters;
+  sort_column: string;
+  sort_direction: string;
+  questions: QuestionWithCreator[];
 }
 
 export default api;

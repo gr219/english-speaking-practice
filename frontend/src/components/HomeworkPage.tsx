@@ -1,77 +1,29 @@
-import { useEffect, useState, useMemo, useCallback, useRef } from 'react';
+import { useEffect, useState, useMemo, useCallback } from 'react';
 import { useNavigate, Link, useSearchParams } from 'react-router-dom';
-import api, { QuestionSummary, QuestionWithCreator } from '../lib/api';
-import { truncateText, formatRelativeTime } from '../lib/utils';
+import api, { QuestionSummary, QuestionWithCreator, HomeworkShareInfo, HomeworkShareFilters } from '../lib/api';
 import { useAdmin } from '../hooks/useAdmin';
 import { useUserId } from '../hooks/useUserId';
 import CreateQuestionModal from './CreateQuestionModal';
+import HomeworkTable from './HomeworkTable';
+import {
+  FilterKey,
+  Filters,
+  FILTER_PARAMS,
+  SortColumn,
+  SortDirection,
+  SORT_COLUMNS,
+  DEFAULT_SORT_COLUMN,
+  DEFAULT_SORT_DIRECTION,
+  filterQuestions,
+  sortQuestions,
+} from '../lib/homeworkFilters';
 
-type SortColumn = 'text' | 'class_label' | 'submission_count' | 'reviewed' | 'created_at' | 'time_limit_secs' | 'question_type';
-type SortDirection = 'asc' | 'desc';
-
-type FilterKey = 'class_label' | 'reviewed_status' | 'question_type';
-type Filters = Partial<Record<FilterKey, string>>;
-
-// Query-param names used to make the filtered/sorted table shareable via URL
-const FILTER_PARAMS: Record<FilterKey, string> = {
-  class_label: 'class',
-  reviewed_status: 'status',
-  question_type: 'type',
-};
-
-const SORT_COLUMNS: SortColumn[] = [
-  'text',
-  'class_label',
-  'submission_count',
-  'reviewed',
-  'created_at',
-  'time_limit_secs',
-  'question_type',
-];
-
-const DEFAULT_SORT_COLUMN: SortColumn = 'created_at';
-const DEFAULT_SORT_DIRECTION: SortDirection = 'desc';
-
-interface FilterDropdownProps {
-  filterKey: FilterKey;
-  options: string[];
-  openFilter: FilterKey | null;
-  filters: Filters;
-  setFilter: (key: FilterKey, value: string | undefined) => void;
-}
-
-function FilterDropdown({ filterKey, options, openFilter, filters, setFilter }: FilterDropdownProps) {
-  if (openFilter !== filterKey) return null;
-  return (
-    <div className="absolute top-full left-0 mt-1 bg-white dark:bg-zinc-700 border border-gray-200 dark:border-zinc-600 rounded-lg shadow-lg z-20 min-w-[140px] py-1">
-      <button
-        onClick={() => setFilter(filterKey, undefined)}
-        className={`w-full text-left px-3 py-1.5 text-xs hover:bg-gray-100 dark:hover:bg-zinc-600 ${!filters[filterKey] ? 'font-semibold text-indigo-600 dark:text-indigo-400' : 'text-zinc-700 dark:text-zinc-200'}`}
-      >
-        All
-      </button>
-      {options.map((opt) => (
-        <button
-          key={opt}
-          onClick={() => setFilter(filterKey, opt)}
-          className={`w-full text-left px-3 py-1.5 text-xs hover:bg-gray-100 dark:hover:bg-zinc-600 ${filters[filterKey] === opt ? 'font-semibold text-indigo-600 dark:text-indigo-400' : 'text-zinc-700 dark:text-zinc-200'}`}
-        >
-          {opt}
-        </button>
-      ))}
-    </div>
-  );
-}
-
-function getReviewedStatus(q: QuestionSummary | QuestionWithCreator): string {
-  if (q.submission_count === 0) return 'No submissions';
-  if (q.feedback_count >= q.submission_count) return 'All reviewed';
-  return 'Pending';
-}
-
-function getReviewedRatio(q: QuestionSummary | QuestionWithCreator): number {
-  if (q.submission_count === 0) return -1;
-  return q.feedback_count / q.submission_count;
+function describeFilters(filters: HomeworkShareFilters): string {
+  const parts: string[] = [];
+  if (filters.class_label) parts.push(`Class: ${filters.class_label}`);
+  if (filters.reviewed_status) parts.push(`Status: ${filters.reviewed_status}`);
+  if (filters.question_type) parts.push(`Type: ${filters.question_type}`);
+  return parts.join(', ') || 'No filters';
 }
 
 export default function HomeworkPage() {
@@ -83,7 +35,6 @@ export default function HomeworkPage() {
   const [searchParams, setSearchParams] = useSearchParams();
 
   const [questions, setQuestions] = useState<(QuestionSummary | QuestionWithCreator)[]>([]);
-  const [openFilter, setOpenFilter] = useState<FilterKey | null>(null);
 
   // Filters and sorting live in the URL so a filtered view can be shared as a link
   const filters = useMemo<Filters>(() => {
@@ -111,7 +62,13 @@ export default function HomeworkPage() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [showCreateHomework, setShowCreateHomework] = useState(false);
 
-  const filterRef = useRef<HTMLDivElement>(null);
+  // Share link state
+  const [showSharePanel, setShowSharePanel] = useState(false);
+  const [activeShare, setActiveShare] = useState<{ id: string; filterKey: string } | null>(null);
+  const [shareUrl, setShareUrl] = useState<string | null>(null);
+  const [shareBusy, setShareBusy] = useState(false);
+  const [shareList, setShareList] = useState<HomeworkShareInfo[]>([]);
+  const [copyStatus, setCopyStatus] = useState(false);
 
   // Redirect non-admin
   useEffect(() => {
@@ -136,16 +93,20 @@ export default function HomeworkPage() {
     setSelected(new Set());
   }, [filterKey]);
 
-  // Close filter dropdown on outside click
+  // Auto-invalidate the share link created for the previous filter combo once
+  // the admin changes/clears the filters — the link no longer represents what's shown.
   useEffect(() => {
-    function handleClick(e: MouseEvent) {
-      if (filterRef.current && !filterRef.current.contains(e.target as Node)) {
-        setOpenFilter(null);
+    if (activeShare && activeShare.filterKey !== filterKey) {
+      const staleId = activeShare.id;
+      const token = adminToken;
+      setActiveShare(null);
+      setShareUrl(null);
+      if (token) {
+        api.adminRevokeHomeworkShare(staleId, token).catch(() => {});
       }
     }
-    document.addEventListener('mousedown', handleClick);
-    return () => document.removeEventListener('mousedown', handleClick);
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filterKey]);
 
   // Unique values for filterable columns
   const classLabels = useMemo(() => {
@@ -154,54 +115,13 @@ export default function HomeworkPage() {
     return Array.from(labels).sort();
   }, [questions]);
 
-  const reviewedStatuses = ['All reviewed', 'Pending', 'No submissions'];
+  const filteredQuestions = useMemo(() => filterQuestions(questions, filters), [questions, filters]);
+  const sortedQuestions = useMemo(
+    () => sortQuestions(filteredQuestions, sortColumn, sortDirection),
+    [filteredQuestions, sortColumn, sortDirection]
+  );
 
-  // Filter
-  const filteredQuestions = useMemo(() => {
-    return questions.filter((q) => {
-      if (filters.class_label && q.class_label !== filters.class_label) return false;
-      if (filters.reviewed_status && getReviewedStatus(q) !== filters.reviewed_status) return false;
-      if (filters.question_type) {
-        const qType = q.question_type || 'speaking';
-        const filterType = filters.question_type.toLowerCase();
-        if (qType !== filterType) return false;
-      }
-      return true;
-    });
-  }, [questions, filters]);
-
-  // Sort
-  const sortedQuestions = useMemo(() => {
-    const sorted = [...filteredQuestions];
-    sorted.sort((a, b) => {
-      let cmp = 0;
-      switch (sortColumn) {
-        case 'text':
-          cmp = a.text.localeCompare(b.text);
-          break;
-        case 'class_label':
-          cmp = (a.class_label || '').localeCompare(b.class_label || '');
-          break;
-        case 'submission_count':
-          cmp = a.submission_count - b.submission_count;
-          break;
-        case 'reviewed':
-          cmp = getReviewedRatio(a) - getReviewedRatio(b);
-          break;
-        case 'created_at':
-          cmp = new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
-          break;
-        case 'time_limit_secs':
-          cmp = a.time_limit_secs - b.time_limit_secs;
-          break;
-        case 'question_type':
-          cmp = (a.question_type || 'speaking').localeCompare(b.question_type || 'speaking');
-          break;
-      }
-      return sortDirection === 'asc' ? cmp : -cmp;
-    });
-    return sorted;
-  }, [filteredQuestions, sortColumn, sortDirection]);
+  const hasActiveFilters = Object.keys(filters).length > 0;
 
   const applySort = (col: SortColumn, dir: SortDirection) => {
     updateParams((params) => {
@@ -222,11 +142,6 @@ export default function HomeworkPage() {
     } else {
       applySort(col, 'asc');
     }
-  };
-
-  const sortIndicator = (col: SortColumn) => {
-    if (sortColumn !== col) return <span className="text-zinc-300 dark:text-zinc-600 ml-1">⇅</span>;
-    return <span className="ml-1">{sortDirection === 'asc' ? '▲' : '▼'}</span>;
   };
 
   const toggleSelect = (id: string) => {
@@ -259,16 +174,64 @@ export default function HomeworkPage() {
     fetchQuestions();
   };
 
-  const toggleFilter = (key: FilterKey) => {
-    setOpenFilter(openFilter === key ? null : key);
-  };
-
   const setFilter = (key: FilterKey, value: string | undefined) => {
     updateParams((params) => {
       if (value) params.set(FILTER_PARAMS[key], value);
       else params.delete(FILTER_PARAMS[key]);
     });
-    setOpenFilter(null);
+  };
+
+  const refreshShareList = useCallback(async () => {
+    if (!adminToken) return;
+    try {
+      const list = await api.adminListHomeworkShares(adminToken);
+      setShareList(list);
+    } catch {
+      // ignore
+    }
+  }, [adminToken]);
+
+  const handleOpenShare = async () => {
+    setShowSharePanel(true);
+    setShareBusy(true);
+    setCopyStatus(false);
+    try {
+      if (adminToken) {
+        const { id } = await api.adminCreateHomeworkShare(adminToken, filters, sortColumn, sortDirection);
+        setActiveShare({ id, filterKey });
+        setShareUrl(`${window.location.origin}/homework/shared/${id}`);
+      }
+      await refreshShareList();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Failed to create share link');
+    } finally {
+      setShareBusy(false);
+    }
+  };
+
+  const handleCopyShareUrl = async () => {
+    if (!shareUrl) return;
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      setCopyStatus(true);
+      setTimeout(() => setCopyStatus(false), 1500);
+    } catch {
+      // ignore
+    }
+  };
+
+  const handleRevokeShare = async (id: string) => {
+    if (!adminToken) return;
+    try {
+      await api.adminRevokeHomeworkShare(id, adminToken);
+      if (activeShare?.id === id) {
+        setActiveShare(null);
+        setShareUrl(null);
+      }
+      await refreshShareList();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Failed to revoke share link');
+    }
   };
 
   if (!isAdmin) return null;
@@ -284,11 +247,19 @@ export default function HomeworkPage() {
 
       {/* Content */}
       <div className="flex-1 overflow-y-auto">
-        <div className="max-w-5xl mx-auto px-4 py-6" ref={filterRef}>
+        <div className="max-w-5xl mx-auto px-4 py-6">
           {/* Header */}
           <div className="flex items-center justify-between mb-6">
             <h1 className="text-lg font-bold text-zinc-900 dark:text-zinc-100">📚 Homework</h1>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 relative">
+              {hasActiveFilters && (
+                <button
+                  onClick={handleOpenShare}
+                  className="text-xs px-3 py-1.5 border border-gray-300 dark:border-zinc-600 rounded-lg text-zinc-600 dark:text-zinc-300 hover:bg-gray-50 dark:hover:bg-zinc-700"
+                >
+                  🔗 Share
+                </button>
+              )}
               {sortedQuestions.length > 0 && (
                 <button
                   onClick={() => { setSelectMode(!selectMode); setSelected(new Set()); }}
@@ -303,6 +274,57 @@ export default function HomeworkPage() {
               >
                 + Create
               </button>
+
+              {showSharePanel && (
+                <div
+                  className="absolute top-full right-0 mt-2 w-80 bg-white dark:bg-zinc-800 border border-gray-200 dark:border-zinc-600 rounded-lg shadow-lg z-30 p-3"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-semibold text-zinc-600 dark:text-zinc-300">Share this filtered view</span>
+                    <button onClick={() => setShowSharePanel(false)} className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 text-sm">×</button>
+                  </div>
+                  {shareBusy ? (
+                    <p className="text-xs text-zinc-400">Creating link...</p>
+                  ) : shareUrl ? (
+                    <div className="flex items-center gap-1 mb-3">
+                      <input
+                        readOnly
+                        value={shareUrl}
+                        className="flex-1 text-xs px-2 py-1 border border-gray-200 dark:border-zinc-600 rounded bg-gray-50 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-200"
+                        onFocus={(e) => e.currentTarget.select()}
+                      />
+                      <button
+                        onClick={handleCopyShareUrl}
+                        className="text-xs px-2 py-1 bg-indigo-500 text-white rounded hover:bg-indigo-600 whitespace-nowrap"
+                      >
+                        {copyStatus ? 'Copied!' : 'Copy'}
+                      </button>
+                    </div>
+                  ) : null}
+
+                  {shareList.length > 0 && (
+                    <div>
+                      <p className="text-[11px] text-zinc-400 mb-1">Active share links</p>
+                      <div className="space-y-1 max-h-40 overflow-y-auto">
+                        {shareList.map((s) => (
+                          <div key={s.id} className="flex items-center justify-between gap-2 text-xs bg-gray-50 dark:bg-zinc-700/50 rounded px-2 py-1">
+                            <span className="text-zinc-600 dark:text-zinc-300 truncate" title={describeFilters(s.filters)}>
+                              {describeFilters(s.filters)}
+                            </span>
+                            <button
+                              onClick={() => handleRevokeShare(s.id)}
+                              className="text-red-500 hover:text-red-700 dark:hover:text-red-400 whitespace-nowrap"
+                            >
+                              Revoke
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
 
@@ -326,7 +348,7 @@ export default function HomeworkPage() {
           )}
 
           {/* Active filters */}
-          {Object.keys(filters).length > 0 && (
+          {hasActiveFilters && (
             <div className="flex items-center gap-2 mb-4 flex-wrap">
               <span className="text-xs text-zinc-500 dark:text-zinc-400">Filters:</span>
               {filters.class_label && (
@@ -351,169 +373,21 @@ export default function HomeworkPage() {
           )}
 
           {/* Table */}
-          {sortedQuestions.length === 0 ? (
-            <p className="text-sm text-zinc-400 text-center py-12">
-              {questions.length === 0 ? 'No homework questions yet.' : 'No questions match the current filters.'}
-            </p>
-          ) : (
-            <div className="overflow-x-auto border border-gray-200 dark:border-zinc-700 rounded-lg">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="bg-gray-50 dark:bg-zinc-800 border-b border-gray-200 dark:border-zinc-700">
-                    {selectMode && (
-                      <th className="px-3 py-3 w-10">
-                        <input
-                          type="checkbox"
-                          checked={selected.size === sortedQuestions.length && sortedQuestions.length > 0}
-                          onChange={() => selected.size === sortedQuestions.length ? setSelected(new Set()) : selectAll()}
-                        />
-                      </th>
-                    )}
-                    <th
-                      className="px-4 py-3 text-left text-xs font-semibold text-zinc-600 dark:text-zinc-300 cursor-pointer hover:text-zinc-900 dark:hover:text-zinc-100 select-none"
-                      onClick={() => handleSort('text')}
-                    >
-                      Question {sortIndicator('text')}
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-zinc-600 dark:text-zinc-300 select-none relative">
-                      <span
-                        className="cursor-pointer hover:text-zinc-900 dark:hover:text-zinc-100"
-                        onClick={() => handleSort('class_label')}
-                      >
-                        Class {sortIndicator('class_label')}
-                      </span>
-                      <button
-                        onClick={(e) => { e.stopPropagation(); toggleFilter('class_label'); }}
-                        className={`ml-1 text-[10px] ${filters.class_label ? 'text-indigo-500' : 'text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200'}`}
-                        title="Filter by class"
-                      >
-                        🔽
-                      </button>
-                      <FilterDropdown filterKey="class_label" options={classLabels} openFilter={openFilter} filters={filters} setFilter={setFilter} />
-                    </th>
-                    <th className="px-4 py-3 text-center text-xs font-semibold text-zinc-600 dark:text-zinc-300 select-none relative">
-                      <span
-                        className="cursor-pointer hover:text-zinc-900 dark:hover:text-zinc-100"
-                        onClick={() => handleSort('question_type')}
-                      >
-                        Type {sortIndicator('question_type')}
-                      </span>
-                      <button
-                        onClick={(e) => { e.stopPropagation(); toggleFilter('question_type'); }}
-                        className={`ml-1 text-[10px] ${filters.question_type ? 'text-indigo-500' : 'text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200'}`}
-                        title="Filter by type"
-                      >
-                        🔽
-                      </button>
-                      <FilterDropdown filterKey="question_type" options={['Speaking', 'Writing']} openFilter={openFilter} filters={filters} setFilter={setFilter} />
-                    </th>
-                    <th
-                      className="px-4 py-3 text-center text-xs font-semibold text-zinc-600 dark:text-zinc-300 cursor-pointer hover:text-zinc-900 dark:hover:text-zinc-100 select-none"
-                      onClick={() => handleSort('submission_count')}
-                    >
-                      Submissions {sortIndicator('submission_count')}
-                    </th>
-                    <th className="px-4 py-3 text-center text-xs font-semibold text-zinc-600 dark:text-zinc-300 select-none relative">
-                      <span
-                        className="cursor-pointer hover:text-zinc-900 dark:hover:text-zinc-100"
-                        onClick={() => handleSort('reviewed')}
-                      >
-                        Reviewed {sortIndicator('reviewed')}
-                      </span>
-                      <button
-                        onClick={(e) => { e.stopPropagation(); toggleFilter('reviewed_status'); }}
-                        className={`ml-1 text-[10px] ${filters.reviewed_status ? 'text-indigo-500' : 'text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200'}`}
-                        title="Filter by review status"
-                      >
-                        🔽
-                      </button>
-                      <FilterDropdown filterKey="reviewed_status" options={reviewedStatuses} openFilter={openFilter} filters={filters} setFilter={setFilter} />
-                    </th>
-                    <th
-                      className="px-4 py-3 text-left text-xs font-semibold text-zinc-600 dark:text-zinc-300 cursor-pointer hover:text-zinc-900 dark:hover:text-zinc-100 select-none"
-                      onClick={() => handleSort('created_at')}
-                    >
-                      Created {sortIndicator('created_at')}
-                    </th>
-                    <th
-                      className="px-4 py-3 text-center text-xs font-semibold text-zinc-600 dark:text-zinc-300 cursor-pointer hover:text-zinc-900 dark:hover:text-zinc-100 select-none"
-                      onClick={() => handleSort('time_limit_secs')}
-                    >
-                      Limit {sortIndicator('time_limit_secs')}
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {sortedQuestions.map((q) => {
-                    const status = getReviewedStatus(q);
-                    return (
-                      <tr
-                        key={q.id}
-                        onClick={() => selectMode ? toggleSelect(q.id) : navigate(`/q/${q.id}/results`)}
-                        className={`border-b border-gray-100 dark:border-zinc-700/50 cursor-pointer transition-colors ${
-                          selectMode && selected.has(q.id)
-                            ? 'bg-red-50 dark:bg-red-900/20'
-                            : 'hover:bg-gray-50 dark:hover:bg-zinc-800/50'
-                        }`}
-                      >
-                        {selectMode && (
-                          <td className="px-3 py-3">
-                            <input
-                              type="checkbox"
-                              checked={selected.has(q.id)}
-                              onChange={() => toggleSelect(q.id)}
-                              onClick={(e) => e.stopPropagation()}
-                            />
-                          </td>
-                        )}
-                        <td className="px-4 py-3 text-zinc-900 dark:text-zinc-100 font-medium max-w-xs">
-                          {truncateText(q.text, 60)}
-                        </td>
-                        <td className="px-4 py-3">
-                          {q.class_label && (
-                            <span className="text-xs px-2 py-0.5 bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 rounded-full">
-                              {q.class_label}
-                            </span>
-                          )}
-                        </td>
-                        <td className="px-4 py-3 text-center">
-                          <span className={`text-xs px-2 py-0.5 rounded-full ${
-                            (q.question_type || 'speaking') === 'writing'
-                              ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300'
-                              : 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'
-                          }`}>
-                            {(q.question_type || 'speaking') === 'writing' ? '✍️ Writing' : '🎤 Speaking'}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 text-center text-indigo-500 dark:text-indigo-400 font-medium">
-                          {q.submission_count}
-                        </td>
-                        <td className="px-4 py-3 text-center">
-                          {q.submission_count > 0 ? (
-                            <span className={`text-xs font-medium ${
-                              status === 'All reviewed'
-                                ? 'text-green-600 dark:text-green-400'
-                                : 'text-amber-500 dark:text-amber-400'
-                            }`}>
-                              {q.feedback_count}/{q.submission_count}
-                            </span>
-                          ) : (
-                            <span className="text-xs text-zinc-400">—</span>
-                          )}
-                        </td>
-                        <td className="px-4 py-3 text-xs text-zinc-500 dark:text-zinc-400 whitespace-nowrap">
-                          {formatRelativeTime(q.created_at)}
-                        </td>
-                        <td className="px-4 py-3 text-center text-xs text-zinc-600 dark:text-zinc-300">
-                          {(q.question_type || 'speaking') === 'writing' ? `${q.time_limit_secs} words` : `${q.time_limit_secs}s`}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
+          <HomeworkTable
+            questions={sortedQuestions}
+            emptyMessage={questions.length === 0 ? 'No homework questions yet.' : 'No questions match the current filters.'}
+            filters={filters}
+            sortColumn={sortColumn}
+            sortDirection={sortDirection}
+            onSort={handleSort}
+            onFilterChange={setFilter}
+            classLabels={classLabels}
+            selectMode={selectMode}
+            selected={selected}
+            onToggleSelect={toggleSelect}
+            onSelectAll={selectAll}
+            onRowClick={(id) => selectMode ? toggleSelect(id) : navigate(`/q/${id}/results`)}
+          />
         </div>
       </div>
 
@@ -551,6 +425,11 @@ export default function HomeworkPage() {
             />
           </div>
         </div>
+      )}
+
+      {/* Close share panel on outside click */}
+      {showSharePanel && (
+        <div className="fixed inset-0 z-20" onClick={() => setShowSharePanel(false)} />
       )}
     </div>
   );

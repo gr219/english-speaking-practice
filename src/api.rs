@@ -906,9 +906,149 @@ async fn admin_list_homework_handler(
     }
     let questions = state
         .db
-        .list_all_homework(query.class_label.as_deref())
+        .list_all_homework(query.class_label.as_deref(), None)
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     Ok(Json(questions))
+}
+
+// --- Homework share link endpoints ---
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct HomeworkShareFilters {
+    pub class_label: Option<String>,
+    pub reviewed_status: Option<String>,
+    pub question_type: Option<String>,
+}
+
+#[derive(Deserialize)]
+pub struct CreateHomeworkShareRequest {
+    pub filters: HomeworkShareFilters,
+    pub sort_column: String,
+    pub sort_direction: String,
+}
+
+#[derive(Serialize)]
+pub struct CreateHomeworkShareResponse {
+    pub id: String,
+}
+
+#[derive(Serialize)]
+pub struct HomeworkShareInfo {
+    pub id: String,
+    pub filters: HomeworkShareFilters,
+    pub sort_column: String,
+    pub sort_direction: String,
+    pub created_at: String,
+}
+
+#[derive(Serialize)]
+pub struct SharedHomeworkResponse {
+    pub filters: HomeworkShareFilters,
+    pub sort_column: String,
+    pub sort_direction: String,
+    pub questions: Vec<crate::db::QuestionWithCreator>,
+}
+
+async fn admin_create_homework_share_handler(
+    state: State<ServerState>,
+    headers: HeaderMap,
+    Json(req): Json<CreateHomeworkShareRequest>,
+) -> Result<impl IntoResponse, (StatusCode, Json<ErrorResponse>)> {
+    if !is_admin(&state, &headers) {
+        return Err((StatusCode::FORBIDDEN, Json(ErrorResponse {
+            error: "Admin access required.".to_string(),
+        })));
+    }
+    let has_filter = req.filters.class_label.is_some()
+        || req.filters.reviewed_status.is_some()
+        || req.filters.question_type.is_some();
+    if !has_filter {
+        return Err((StatusCode::BAD_REQUEST, Json(ErrorResponse {
+            error: "At least one filter must be applied to create a share link.".to_string(),
+        })));
+    }
+    let filters_json = serde_json::to_string(&req.filters).map_err(|e| {
+        error!(error = %e, "Failed to encode homework share filters");
+        (StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorResponse {
+            error: "Failed to encode filters.".to_string(),
+        }))
+    })?;
+    let share = state
+        .db
+        .create_homework_share(&filters_json, &req.sort_column, &req.sort_direction)
+        .map_err(|e| {
+            error!(error = %e, "Failed to create homework share");
+            (StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorResponse {
+                error: "Failed to create share link.".to_string(),
+            }))
+        })?;
+    Ok(Json(CreateHomeworkShareResponse { id: share.id }))
+}
+
+async fn admin_list_homework_shares_handler(
+    state: State<ServerState>,
+    headers: HeaderMap,
+) -> Result<impl IntoResponse, StatusCode> {
+    if !is_admin(&state, &headers) {
+        return Err(StatusCode::FORBIDDEN);
+    }
+    let shares = state
+        .db
+        .list_active_homework_shares()
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let infos: Vec<HomeworkShareInfo> = shares
+        .into_iter()
+        .map(|s| HomeworkShareInfo {
+            filters: serde_json::from_str(&s.filters_json).unwrap_or_default(),
+            id: s.id,
+            sort_column: s.sort_column,
+            sort_direction: s.sort_direction,
+            created_at: s.created_at,
+        })
+        .collect();
+    Ok(Json(infos))
+}
+
+async fn admin_revoke_homework_share_handler(
+    state: State<ServerState>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+) -> Result<impl IntoResponse, StatusCode> {
+    if !is_admin(&state, &headers) {
+        return Err(StatusCode::FORBIDDEN);
+    }
+    let revoked = state
+        .db
+        .revoke_homework_share(&id)
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    if revoked {
+        Ok(StatusCode::NO_CONTENT)
+    } else {
+        Err(StatusCode::NOT_FOUND)
+    }
+}
+
+async fn get_shared_homework_handler(
+    state: State<ServerState>,
+    Path(id): Path<String>,
+) -> Result<impl IntoResponse, StatusCode> {
+    let share = state
+        .db
+        .get_homework_share(&id)
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+        .ok_or(StatusCode::NOT_FOUND)?;
+    let filters: HomeworkShareFilters = serde_json::from_str(&share.filters_json).unwrap_or_default();
+    let question_type_filter = filters.question_type.as_deref().map(|s| s.to_lowercase());
+    let questions = state
+        .db
+        .list_all_homework(filters.class_label.as_deref(), question_type_filter.as_deref())
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    Ok(Json(SharedHomeworkResponse {
+        filters,
+        sort_column: share.sort_column,
+        sort_direction: share.sort_direction,
+        questions,
+    }))
 }
 
 pub fn router() -> Router<ServerState, Body> {
@@ -933,7 +1073,11 @@ pub fn router() -> Router<ServerState, Body> {
         .route("/questions/:id/submissions", get(get_question_submissions_handler))
         .route("/questions/:id/writing", post(submit_writing_answer_handler))
         .route("/homework", get(list_homework_handler))
+        .route("/homework/share/:id", get(get_shared_homework_handler))
         .route("/admin/homework", get(admin_list_homework_handler))
+        .route("/admin/homework/share", post(admin_create_homework_share_handler))
+        .route("/admin/homework/shares", get(admin_list_homework_shares_handler))
+        .route("/admin/homework/share/:id/revoke", post(admin_revoke_homework_share_handler))
         .route("/admin/verify", post(admin_verify_handler))
         .route("/admin/submissions/recent", get(admin_recent_submissions_handler))
         .route("/admin/questions", get(admin_list_questions_handler))

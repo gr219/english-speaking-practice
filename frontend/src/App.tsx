@@ -12,6 +12,7 @@ import Leaderboard from './components/Leaderboard';
 import AdminLoginModal from './components/AdminLoginModal';
 import AdminPanel from './components/AdminPanel';
 import HomeworkPage from './components/HomeworkPage';
+import SharedHomeworkView from './components/SharedHomeworkView';
 import { AnalyzeResult, Word } from './lib/api';
 import api from './lib/api';
 import { useUserId } from './hooks/useUserId';
@@ -181,6 +182,7 @@ export default function App() {
       <Route path="/" element={<MainPage />} />
       <Route path="/admin" element={<AdminPage />} />
       <Route path="/homework" element={<HomeworkPage />} />
+      <Route path="/homework/shared/:shareId" element={<SharedHomeworkView />} />
       <Route path="/share/:id" element={<ShareView />} />
       <Route path="/q/:id" element={<QuestionAnswerView />} />
       <Route path="/q/:id/results" element={<QuestionResultsView />} />

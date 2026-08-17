@@ -119,6 +119,15 @@ pub struct QuestionWithCreator {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HomeworkShare {
+    pub id: String,
+    pub filters_json: String,
+    pub sort_column: String,
+    pub sort_direction: String,
+    pub created_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RecentSubmission {
     pub id: String,
     pub speaker_name: Option<String>,
@@ -259,6 +268,19 @@ impl Database {
 
         // Migration: add diff_json column if not exists
         let _ = conn.execute_batch("ALTER TABLE feedbacks ADD COLUMN diff_json TEXT;");
+
+        // Create homework_shares table
+        conn.execute_batch(
+            "CREATE TABLE IF NOT EXISTS homework_shares (
+                id TEXT PRIMARY KEY,
+                filters_json TEXT NOT NULL,
+                sort_column TEXT NOT NULL,
+                sort_direction TEXT NOT NULL,
+                created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+                revoked INTEGER NOT NULL DEFAULT 0
+            );
+            CREATE INDEX IF NOT EXISTS idx_homework_shares_active ON homework_shares(filters_json, sort_column, sort_direction, revoked);"
+        )?;
 
         Ok(Self {
             conn: Mutex::new(conn),
@@ -566,30 +588,31 @@ impl Database {
         rows.collect()
     }
 
-    pub fn list_all_homework(&self, class_filter: Option<&str>) -> Result<Vec<QuestionWithCreator>> {
+    pub fn list_all_homework(&self, class_filter: Option<&str>, question_type_filter: Option<&str>) -> Result<Vec<QuestionWithCreator>> {
         let conn = self.conn.lock().unwrap();
-        let (sql, params_vec): (String, Vec<Box<dyn rusqlite::types::ToSql>>) = match class_filter {
-            Some(label) => (
-                "SELECT q.id, q.creator_id, q.text, q.time_limit_secs, q.created_at,
-                        (SELECT COUNT(*) FROM recordings r WHERE r.question_id = q.id AND r.submitted = 1) as submission_count,
-                        (SELECT COUNT(DISTINCT r2.id) FROM recordings r2 JOIN feedbacks f ON f.recording_id = r2.id WHERE r2.question_id = q.id AND r2.submitted = 1) as feedback_count,
-                        q.class_label, q.question_type
-                 FROM questions q
-                 WHERE q.class_label = ?1
-                 ORDER BY q.created_at DESC".to_string(),
-                vec![Box::new(label.to_string())],
-            ),
-            None => (
-                "SELECT q.id, q.creator_id, q.text, q.time_limit_secs, q.created_at,
-                        (SELECT COUNT(*) FROM recordings r WHERE r.question_id = q.id AND r.submitted = 1) as submission_count,
-                        (SELECT COUNT(DISTINCT r2.id) FROM recordings r2 JOIN feedbacks f ON f.recording_id = r2.id WHERE r2.question_id = q.id AND r2.submitted = 1) as feedback_count,
-                        q.class_label, q.question_type
-                 FROM questions q
-                 WHERE q.class_label IS NOT NULL
-                 ORDER BY q.created_at DESC".to_string(),
-                vec![],
-            ),
-        };
+        let mut sql = String::from(
+            "SELECT q.id, q.creator_id, q.text, q.time_limit_secs, q.created_at,
+                    (SELECT COUNT(*) FROM recordings r WHERE r.question_id = q.id AND r.submitted = 1) as submission_count,
+                    (SELECT COUNT(DISTINCT r2.id) FROM recordings r2 JOIN feedbacks f ON f.recording_id = r2.id WHERE r2.question_id = q.id AND r2.submitted = 1) as feedback_count,
+                    q.class_label, q.question_type
+             FROM questions q
+             WHERE ",
+        );
+        let mut params_vec: Vec<Box<dyn rusqlite::types::ToSql>> = Vec::new();
+        match class_filter {
+            Some(label) => {
+                sql.push_str("q.class_label = ?");
+                params_vec.push(Box::new(label.to_string()));
+            }
+            None => {
+                sql.push_str("q.class_label IS NOT NULL");
+            }
+        }
+        if let Some(qtype) = question_type_filter {
+            sql.push_str(" AND q.question_type = ?");
+            params_vec.push(Box::new(qtype.to_string()));
+        }
+        sql.push_str(" ORDER BY q.created_at DESC");
         let mut stmt = conn.prepare(&sql)?;
         let params_refs: Vec<&dyn rusqlite::types::ToSql> = params_vec.iter().map(|p| p.as_ref()).collect();
         let rows = stmt.query_map(params_refs.as_slice(), |row| {
@@ -751,5 +774,91 @@ impl Database {
             })
         })?;
         rows.collect()
+    }
+
+    // --- Homework share links ---
+
+    pub fn create_homework_share(&self, filters_json: &str, sort_column: &str, sort_direction: &str) -> Result<HomeworkShare> {
+        let conn = self.conn.lock().unwrap();
+        let existing: Option<(String, String)> = conn
+            .query_row(
+                "SELECT id, created_at FROM homework_shares
+                 WHERE filters_json = ?1 AND sort_column = ?2 AND sort_direction = ?3 AND revoked = 0",
+                params![filters_json, sort_column, sort_direction],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .ok();
+        if let Some((id, created_at)) = existing {
+            return Ok(HomeworkShare {
+                id,
+                filters_json: filters_json.to_string(),
+                sort_column: sort_column.to_string(),
+                sort_direction: sort_direction.to_string(),
+                created_at,
+            });
+        }
+        let id = uuid::Uuid::new_v4().to_string();
+        conn.execute(
+            "INSERT INTO homework_shares (id, filters_json, sort_column, sort_direction) VALUES (?1, ?2, ?3, ?4)",
+            params![id, filters_json, sort_column, sort_direction],
+        )?;
+        let created_at: String = conn.query_row(
+            "SELECT created_at FROM homework_shares WHERE id = ?1",
+            params![id],
+            |row| row.get(0),
+        )?;
+        Ok(HomeworkShare {
+            id,
+            filters_json: filters_json.to_string(),
+            sort_column: sort_column.to_string(),
+            sort_direction: sort_direction.to_string(),
+            created_at,
+        })
+    }
+
+    pub fn get_homework_share(&self, id: &str) -> Result<Option<HomeworkShare>> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare(
+            "SELECT id, filters_json, sort_column, sort_direction, created_at
+             FROM homework_shares WHERE id = ?1 AND revoked = 0",
+        )?;
+        let mut rows = stmt.query_map(params![id], |row| {
+            Ok(HomeworkShare {
+                id: row.get(0)?,
+                filters_json: row.get(1)?,
+                sort_column: row.get(2)?,
+                sort_direction: row.get(3)?,
+                created_at: row.get(4)?,
+            })
+        })?;
+        match rows.next() {
+            Some(Ok(share)) => Ok(Some(share)),
+            Some(Err(e)) => Err(e),
+            None => Ok(None),
+        }
+    }
+
+    pub fn list_active_homework_shares(&self) -> Result<Vec<HomeworkShare>> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare(
+            "SELECT id, filters_json, sort_column, sort_direction, created_at
+             FROM homework_shares WHERE revoked = 0 ORDER BY created_at DESC",
+        )?;
+        let rows = stmt.query_map([], |row| {
+            Ok(HomeworkShare {
+                id: row.get(0)?,
+                filters_json: row.get(1)?,
+                sort_column: row.get(2)?,
+                sort_direction: row.get(3)?,
+                created_at: row.get(4)?,
+            })
+        })?;
+        rows.collect()
+    }
+
+    pub fn revoke_homework_share(&self, id: &str) -> Result<bool> {
+        let conn = self.conn.lock().unwrap();
+        let affected = conn.execute("UPDATE homework_shares SET revoked = 1 WHERE id = ?1", params![id])?;
+        Ok(affected > 0)
     }
 }
